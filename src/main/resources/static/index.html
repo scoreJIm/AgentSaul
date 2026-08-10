@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentSaul — AI Attorney</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0f19;
+  --surface: #131a2b;
+  --surface2: #1a2340;
+  --border: #1e2d4a;
+  --gold: #f59e0b;
+  --gold-dim: #b45309;
+  --red: #ef4444;
+  --cyan: #06b6d4;
+  --green: #22c55e;
+  --purple: #8b5cf6;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --text3: #64748b;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh; display: flex; overflow: hidden;
+}
+
+/* ── SIDEBAR ── */
+#sidebar {
+  width: 310px; background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; flex-shrink: 0;
+}
+.sb-header {
+  padding: 20px 18px 14px; border-bottom: 1px solid var(--border);
+}
+.logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.logo-icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--gold), #d97706);
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
+}
+.logo-text h2 { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.3px; }
+.logo-text h2 em { color: var(--gold); font-style: normal; }
+.logo-text .ver { font-size: 0.6rem; color: var(--text3); letter-spacing: 1.5px; text-transform: uppercase; }
+.session-badge {
+  margin-top: 10px; padding: 8px 12px; background: rgba(139,92,246,0.08);
+  border: 1px solid rgba(139,92,246,0.2); border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;
+  display: flex; align-items: center; gap: 6px;
+}
+.session-badge .dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; }
+.session-badge .uuid { color: var(--purple); }
+.sb-actions { display: flex; gap: 6px; padding: 12px 18px; border-bottom: 1px solid var(--border); }
+.sb-actions button {
+  flex: 1; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text2); font-size: 0.72rem;
+  font-weight: 500; cursor: pointer; transition: all 0.15s; letter-spacing: -0.2px;
+}
+.sb-actions button:hover { border-color: var(--gold); color: var(--gold); }
+#conv-list { flex: 1; overflow-y: auto; padding: 8px 10px; }
+.conv-item {
+  padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 3px;
+  display: flex; justify-content: space-between; align-items: center;
+  transition: all 0.15s; border: 1px solid transparent;
+}
+.conv-item:hover { background: var(--surface2); }
+.conv-item.active { background: rgba(245,158,11,0.05); border-color: rgba(245,158,11,0.15); }
+.conv-item .ci { flex:1; min-width:0; }
+.conv-item .t { font-size: 0.8rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conv-item .meta { font-size: 0.64rem; color: var(--text3); margin-top: 2px; }
+.conv-item .del { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 1rem; opacity:0; }
+.conv-item:hover .del { opacity: 1; }
+.conv-item .del:hover { color: var(--red); }
+
+/* ── TOOL PANEL ── */
+#tool-panel {
+  max-height: 180px; overflow-y: auto; border-top: 1px solid var(--border);
+  padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
+}
+#tool-panel h4 { color: var(--text3); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+.tool-row {
+  padding: 6px 8px; margin-bottom: 4px; border-radius: 4px;
+  background: rgba(6,182,212,0.04); border: 1px solid rgba(6,182,212,0.1);
+  color: var(--cyan); display: flex; gap: 6px; align-items: flex-start;
+}
+.tool-row .tdot { width: 5px; height: 5px; background: var(--cyan); border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+.tool-row .tname { color: var(--text2); }
+.tool-row .tresult { color: var(--text3); word-break: break-all; }
+
+/* ── MAIN ── */
+#main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+header {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+}
+.header-left { display: flex; align-items: center; gap: 10px; }
+.status-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+.header-left span { font-size: 0.75rem; color: var(--text2); font-weight: 500; letter-spacing: -0.2px; }
+.header-stats { display: flex; gap: 24px; }
+.hs { text-align: center; }
+.hs .v { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--gold); font-weight: 600; }
+.hs .l { font-size: 0.58rem; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; }
+#intent-tag {
+  font-size: 0.65rem; padding: 3px 10px; border-radius: 12px;
+  border: 1px solid var(--purple); color: var(--purple);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ── CHAT ── */
+#chat-container {
+  flex: 1; overflow-y: auto; padding: 24px 32px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+#chat-container::-webkit-scrollbar { width: 4px; }
+#chat-container::-webkit-scrollbar-thumb { background: rgba(245,158,11,0.12); border-radius: 2px; }
+
+/* welcome */
+.welcome-wrap {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+}
+.welcome-card {
+  text-align: center; max-width: 600px; padding: 48px;
+  border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
+}
+.wc-icon { font-size: 52px; margin-bottom: 14px; display: block; }
+.welcome-card h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.5px; }
+.welcome-card h1 em { color: var(--gold); font-style: normal; }
+.welcome-card p { color: var(--text2); font-size: 0.88rem; line-height: 1.7; }
+.skill-tags { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; justify-content: center; }
+.skill-tag {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.62rem;
+  padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border); color: var(--text3);
+}
+.skill-tag.on { border-color: rgba(245,158,11,0.4); color: var(--gold); }
+
+/* messages */
+.msg { display: flex; gap: 10px; animation: slideIn 0.25s ease; }
+@keyframes slideIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+.msg.user { flex-direction: row-reverse; }
+.av {
+  width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 15px;
+}
+.msg.assistant .av { background: rgba(245,158,11,0.1); color: var(--gold); }
+.msg.user .av { background: rgba(239,68,68,0.1); color: var(--red); }
+.msg.tool .av { background: rgba(6,182,212,0.1); color: var(--cyan); }
+.bubble {
+  max-width: 68%; padding: 12px 16px; border-radius: 10px; line-height: 1.65; font-size: 0.87rem;
+  word-wrap: break-word; white-space: pre-wrap;
+}
+.msg.assistant .bubble { background: var(--surface2); border: 1px solid var(--border); border-left: 2px solid var(--gold); }
+.msg.user .bubble { background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.12); border-right: 2px solid var(--red); color: #fecaca; }
+.msg.tool .bubble {
+  background: rgba(6,182,212,0.03); border: 1px solid rgba(6,182,212,0.1);
+  border-left: 2px solid var(--cyan); font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem; color: #67e8f9;
+}
+.bubble .tlabel {
+  font-size: 0.58rem; color: var(--cyan); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;
+}
+.typing::after { content: '▌'; animation: blink 0.8s infinite; color: var(--gold); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* input */
+#input-area {
+  padding: 12px 24px 18px; border-top: 1px solid var(--border);
+  background: var(--surface); flex-shrink: 0;
+}
+.input-top { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; flex-wrap: wrap; }
+.input-top label {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.6rem;
+  color: var(--text3); text-transform: uppercase; letter-spacing: 1px; white-space: nowrap;
+}
+.input-top input {
+  width: 96px; background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); padding: 5px 8px; border-radius: 5px;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; outline: none;
+}
+.input-top input:focus { border-color: var(--gold); }
+.input-top .grow { flex: 1; }
+.chat-row { display: flex; gap: 8px; align-items: flex-end; }
+#input-wrap {
+  flex: 1; border: 1px solid var(--border); background: var(--surface2);
+  border-radius: 8px; transition: border-color 0.2s;
+}
+#input-wrap:focus-within { border-color: var(--gold); }
+#user-input {
+  width: 100%; background: transparent; border: none; color: var(--text);
+  padding: 10px 14px; font-size: 0.87rem; font-family: inherit;
+  resize: none; outline: none; line-height: 1.5; min-height: 42px; max-height: 100px;
+}
+#user-input::placeholder { color: var(--text3); }
+.chat-row button {
+  padding: 10px 16px; border-radius: 8px; border: none;
+  font-size: 0.73rem; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+#send-btn { background: linear-gradient(135deg, var(--gold), #d97706); color: #000; }
+#send-btn:hover { filter: brightness(1.1); }
+#send-btn:disabled { filter: grayscale(0.5); cursor: not-allowed; }
+#reset-btn { background: transparent; border: 1px solid rgba(239,68,68,0.3); color: var(--red); }
+#reset-btn:hover { background: rgba(239,68,68,0.06); }
+
+@media (max-width: 800px) {
+  #sidebar { width: 260px; }
+  .bubble { max-width: 85%; }
+  .welcome-card { padding: 32px 24px; }
+}
+</style>
+</head>
+<body>
+
+<aside id="sidebar">
+  <div class="sb-header">
+    <div class="logo-row">
+      <div class="logo-icon">⚖</div>
+      <div class="logo-text">
+        <h2>Agent<em>Saul</em></h2>
+        <div class="ver">Attorney at AI</div>
+      </div>
+    </div>
+    <div class="session-badge">
+      <div class="dot"></div>
+      <span>SESSION </span><span class="uuid" id="session-id">---</span>
+    </div>
+  </div>
+  <div class="sb-actions">
+    <button onclick="newConv()">+ 新案件</button>
+    <button onclick="resetConv()" style="color:var(--red);border-color:rgba(239,68,68,0.25)">↺ 重置</button>
+  </div>
+  <div id="conv-list"></div>
+  <div id="tool-panel">
+    <h4>⚡ 工具调用链</h4>
+    <div id="tool-list" style="color:var(--text3)">暂无工具调用</div>
+  </div>
+</aside>
+
+<div id="main">
+  <header>
+    <div class="header-left">
+      <div class="status-dot"></div>
+      <span>SYSTEM ONLINE</span>
+      <div id="intent-tag" style="display:none"></div>
+    </div>
+    <div class="header-stats">
+      <div class="hs"><div class="l">模型</div><div class="v">Qwen3-VL</div></div>
+      <div class="hs"><div class="l">供应商</div><div class="v">百炼</div></div>
+      <div class="hs"><div class="l">本地时间</div><div class="v" id="clock">--:--:--</div></div>
+    </div>
+  </header>
+
+  <div id="chat-container">
+    <div class="welcome-wrap" id="welcome-wrap">
+      <div class="welcome-card">
+        <span class="wc-icon">⚖️</span>
+        <h1>Better Call <em>Saul</em></h1>
+        <p>您的 AI 律师已上线。我支持天气查询、地理定位、法律期限计算、赔偿估算、翻译、搜索和数学计算。<br>所有对话和工具调用都会被记录。</p>
+        <div class="skill-tags">
+          <span class="skill-tag on">天气</span>
+          <span class="skill-tag on">定位</span>
+          <span class="skill-tag on">法律</span>
+          <span class="skill-tag on">翻译</span>
+          <span class="skill-tag on">计算</span>
+          <span class="skill-tag on">搜索</span>
+          <span class="skill-tag">工具历史</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="input-area">
+    <div class="input-top">
+      <label>纬度</label><input id="lat" placeholder="31.23" step="any">
+      <label>经度</label><input id="lon" placeholder="121.47" step="any">
+      <span class="grow"></span>
+    </div>
+    <div class="chat-row">
+      <div id="input-wrap"><textarea id="user-input" placeholder="告诉 Saul 你需要什么..." rows="1"></textarea></div>
+      <button id="send-btn">▶ 发送</button>
+      <button id="reset-btn" onclick="resetConv()">↺</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const chatEl = document.getElementById('chat-container');
+const welcomeWrap = document.getElementById('welcome-wrap');
+const inputEl = document.getElementById('user-input');
+const sendBtn = document.getElementById('send-btn');
+const convList = document.getElementById('conv-list');
+const toolList = document.getElementById('tool-list');
+const intentTag = document.getElementById('intent-tag');
+const sessionIdEl = document.getElementById('session-id');
+const clockEl = document.getElementById('clock');
+let convId = null, streaming = false;
+
+// clock
+function tick() { clockEl.textContent = new Date().toLocaleTimeString('zh-CN',{hour12:false}); }
+tick(); setInterval(tick, 1000);
+
+// session
+async function initSession() {
+  try {
+    const r = await fetch('/api/session'); const s = await r.json();
+    sessionIdEl.textContent = s.sessionId || '---';
+  } catch(e) { sessionIdEl.textContent = 'offline'; }
+}
+initSession();
+
+// input resize
+inputEl.addEventListener('input', () => { inputEl.style.height='auto'; inputEl.style.height=Math.min(inputEl.scrollHeight, 100)+'px'; });
+
+// conversations
+async function loadConvs() {
+  const r = await fetch('/api/conversations'); const cs = await r.json();
+  convList.innerHTML = '';
+  cs.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'conv-item' + (c.id===convId?' active':'');
+    const dt = c.createdAt ? c.createdAt.split('T')[0]+' '+c.createdAt.split('T')[1].substring(0,5) : '';
+    d.innerHTML = `<div class="ci"><div class="t">${esc(c.title||'未命名案件')}</div><div class="meta">${dt}</div></div><button class="del">×</button>`;
+    d.querySelector('.ci').onclick = () => loadConv(c.id);
+    d.querySelector('.del').onclick = e => { e.stopPropagation(); delConv(c.id); };
+    convList.appendChild(d);
+  });
+}
+
+async function loadConv(id) {
+  convId = id; welcomeWrap.style.display = 'none'; chatEl.querySelectorAll('.welcome-wrap').forEach(w => w.remove());
+  chatEl.innerHTML = ''; toolList.innerHTML = '';
+  try {
+    const [msgs, tools] = await Promise.all([
+      fetch(`/api/conversations/${id}/messages`).then(r=>r.json()),
+      fetch(`/api/conversations/${id}/tools`).then(r=>r.json())
+    ]);
+    msgs.forEach(m => {
+      if (m.role==='tool_call' || m.role==='tool_result') renderTool(m); else appendMsg(m.role, m.content, false);
+    });
+  } catch(e) { console.error(e); }
+  loadConvs();
+}
+
+async function newConv() {
+  convId = null; chatEl.innerHTML = '';
+  chatEl.innerHTML = `<div class="welcome-wrap" id="welcome-wrap">
+    <div class="welcome-card"><span class="wc-icon">⚖️</span><h1>Better Call <em>Saul</em></h1>
+    <p>新案件。有什么可以帮你的？</p>
+    <div class="skill-tags"><span class="skill-tag on">天气</span><span class="skill-tag on">定位</span><span class="skill-tag on">法律</span><span class="skill-tag on">翻译</span><span class="skill-tag on">计算</span><span class="skill-tag on">搜索</span></div></div></div>`;
+  toolList.innerHTML = '暂无工具调用';
+  loadConvs();
+}
+
+async function resetConv() {
+  if (convId) { await fetch(`/api/conversations/${convId}`,{method:'DELETE'}); }
+  convId = null; chatEl.innerHTML = ''; toolList.innerHTML = '暂无工具调用';
+  chatEl.innerHTML = `<div class="welcome-wrap" id="welcome-wrap">
+    <div class="welcome-card"><span class="wc-icon">⚖️</span><h1>Better Call <em>Saul</em></h1>
+    <p>案件已重置。有什么可以帮你的？</p></div></div>`;
+  loadConvs();
+}
+
+async function delConv(id) {
+  await fetch(`/api/conversations/${id}`,{method:'DELETE'});
+  if (convId===id) resetConv(); else loadConvs();
+}
+
+// messages
+function appendMsg(role, content, anim=true) {
+  welcomeWrap.style.display = 'none'; chatEl.querySelectorAll('.welcome-wrap').forEach(w => w.remove());
+  const m = document.createElement('div'); m.className = 'msg '+role;
+  if (anim) m.style.animation = 'slideIn 0.25s ease';
+  const av = document.createElement('div'); av.className = 'av';
+  av.textContent = role==='assistant'?'⚖':'👤';
+  const b = document.createElement('div'); b.className = 'bubble';
+  b.textContent = content;
+  m.appendChild(av); m.appendChild(b);
+  chatEl.appendChild(m); chatEl.scrollTop = chatEl.scrollHeight;
+  return b;
+}
+
+function renderTool(msg) {
+  const m = document.createElement('div'); m.className = 'msg tool';
+  const av = document.createElement('div'); av.className = 'av'; av.textContent = '⚡';
+  const b = document.createElement('div'); b.className = 'bubble';
+  b.innerHTML = `<div class="tlabel">${msg.role==='tool_call'?'🔧 调用工具':'✓ 工具返回'}</div>${esc(msg.content)}`;
+  m.appendChild(av); m.appendChild(b); chatEl.appendChild(m);
+
+  const row = document.createElement('div'); row.className = 'tool-row';
+  row.innerHTML = `<div class="tdot"></div><div><span class="tname">${esc(msg.toolName||'')}</span><br><span class="tresult">${esc((msg.content||'').substring(0,150))}</span></div>`;
+  if (toolList.textContent==='暂无工具调用') toolList.innerHTML = '';
+  toolList.appendChild(row);
+  toolList.parentElement.scrollTop = toolList.parentElement.scrollHeight;
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+
+// send
+async function send() {
+  const text = inputEl.value.trim();
+  if (!text || streaming) return;
+
+  const lat = document.getElementById('lat').value.trim();
+  const lon = document.getElementById('lon').value.trim();
+  let msg = text;
+  if (lat && lon) msg = `[我的位置: lat=${lat}, lon=${lon}] ` + msg;
+
+  inputEl.value = ''; inputEl.style.height = 'auto';
+  streaming = true; sendBtn.disabled = true;
+
+  welcomeWrap.style.display = 'none'; chatEl.querySelectorAll('.welcome-wrap').forEach(w => w.remove());
+
+  appendMsg('user', text);
+  const bub = appendMsg('assistant', '');
+  bub.classList.add('typing');
+
+  try {
+    const resp = await fetch('/api/chat', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ message: msg })
+    });
+    if (!resp.ok) throw new Error('Server '+resp.status);
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder('utf-8');
+    let buf = '', first = true;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream:true});
+      const lines = buf.split('\n'); buf = lines.pop()||'';
+      for (const l of lines) {
+        if (!l.startsWith('data:')) continue;
+        const c = l.slice(5).trim();
+        if (!c) continue;
+        if (first) { bub.textContent = c; first = false; }
+        else bub.textContent += c;
+      }
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+  } catch(e) { bub.textContent = '连接失败: ' + e.message; }
+  finally {
+    bub.classList.remove('typing');
+    streaming = false; sendBtn.disabled = false;
+    inputEl.focus();
+    loadConvs();
+    if (!convId) {
+      const cs = await (await fetch('/api/conversations')).json();
+      if (cs.length) { convId = cs[0].id; loadConv(convId); }
+    } else {
+      loadConv(convId);
+    }
+  }
+}
+
+inputEl.addEventListener('keydown', e => {
+  if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+
+loadConvs();
+</script>
+</body>
+</html>
