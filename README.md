@@ -1,84 +1,102 @@
-# ⚖ AgentSaul — Better Call Your AI Attorney
+# AgentSaul — Your AI Attorney
 
-Spring AI 驱动的智能对话 Agent，Better Call Saul 主题风格。
+A conversational AI agent built on Spring AI. "Better Call Saul" themed because
+naming things is hard and the show is great.
 
-## 技术栈
+## What it does
 
-| 层次 | 技术 |
-|------|------|
-| 框架 | Spring Boot 3.4 + Spring AI 1.0 |
-| LLM | DashScope（百炼）Qwen3 / OpenAI 兼容 |
-| 数据库 | MySQL + MyBatis |
-| 缓存 | Redis（Session / 消息缓存） |
-| 前端 | 原生 HTML/CSS/JS，SSE 流式对话 |
-| 构建 | Maven + Java 21 |
+You chat. It remembers. When it needs real information, it fires off tool calls
+instead of hallucinating. Web search, translation, legal references, weather,
+math — it reaches for the right tool rather than guessing.
 
-## 快速启动
+The point isn't the legal theme. It's the architecture underneath: intent
+parsing, tool dispatch, SSE streaming, and session-scoped memory that doesn't
+bleed across users.
 
-### 1. 环境要求
-- JDK 21+
-- MySQL 5.7+ / 8.0
-- Redis（可选，默认连 localhost:6379）
-- Maven 3.9+
+## Tech stack
 
-### 2. 配置
-编辑 `src/main/resources/application.yml`，填入 API Key 和数据库信息：
-```yaml
-spring:
-  ai:
-    openai:
-      api-key: sk-your-api-key
-      base-url: https://dashscope.aliyuncs.com/compatible-mode
-  datasource:
-    url: jdbc:mysql://localhost:3306/agent_saul?...
+| Layer | What |
+|-------|------|
+| Framework | Spring Boot 3.4, Spring AI 1.0 |
+| LLM backend | DashScope Qwen3, OpenAI-compatible endpoint |
+| Database | MySQL + MyBatis |
+| Cache | Redis (session state, message cache) |
+| Frontend | Vanilla HTML/CSS/JS, SSE streaming |
+| Build | Maven, Java 21 |
+| CI/CD | GitHub Actions |
+| Container | Docker multi-stage |
+
+## Quick start
+
+```bash
+git clone git@github.com:scoreJIm/AgentSaul.git
+cd AgentSaul
 ```
 
-### 3. 启动
+Edit `src/main/resources/application.yml` — point it at your MySQL and
+DashScope API key. Then:
+
 ```bash
 mvn spring-boot:run
 ```
-打开浏览器访问 `http://localhost:8080`
+
+Open `http://localhost:8080`. Schema auto-initializes.
+
+Or with Docker:
+
+```bash
+docker build -t agentsaul .
+docker run -p 8080:8080 -e AI_API_KEY=your-key agentsaul
+```
 
 ## API
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/chat` | 发送消息（SSE 流式返回） |
-| GET | `/api/conversations` | 获取会话列表 |
-| GET | `/api/conversations/{id}/messages` | 获取历史消息 |
-| DELETE | `/api/conversations/{id}` | 删除会话 |
+| Method | Path | What |
+|--------|------|------|
+| POST | `/api/chat` | Send message, SSE stream back |
+| GET | `/api/conversations` | List conversations |
+| GET | `/api/conversations/{id}/messages` | Message history |
+| GET | `/api/conversations/{id}/tools` | Tool call history |
+| DELETE | `/api/conversations/{id}` | Delete conversation |
 
-### 请求示例
-```json
-POST /api/chat
-{
-  "message": "I need legal advice",
-  "conversationId": 1
-}
-```
+## Architecture notes
 
-## 项目结构
+- **Tool dispatch**: `IntentParser` does a first-pass classification, then
+  Spring AI handles tool selection. Not hardcoded if-else.
+- **Session memory**: `MessageWindowChatMemory` keyed by session ID, 20
+  messages per window. Different tabs = different sessions.
+- **Streaming + persistence**: SSE chunks hit the client immediately. On
+  stream completion, the full response lands in MySQL and Redis.
+- **Prompts as data**: System prompt lives in Markdown files under
+  `resources/prompts/`. Tweak without touching Java.
+
+## Project layout
+
 ```
 src/main/java/com/agentsaul/
 ├── AgentSaulApplication.java
 ├── config/
-│   ├── AiConfig.java          # ChatClient Bean
-│   └── CacheConfig.java       # Redis 缓存配置
+│   ├── AiConfig.java            # ChatClient bean
+│   └── CacheConfig.java         # Redis setup
 ├── controller/
-│   └── ChatController.java    # REST API
+│   └── ChatController.java      # REST endpoints
 ├── entity/
-│   ├── Conversation.java      # 会话实体
-│   └── Message.java           # 消息实体
+│   ├── Conversation.java
+│   └── Message.java
 ├── repository/
 │   ├── ConversationMapper.java
 │   └── MessageMapper.java
-└── service/
-    └── ChatService.java       # 核心对话逻辑
+├── service/
+│   ├── ChatService.java         # Chat logic, streaming, memory
+│   └── IntentParser.java        # Intent + language detection
+└── tool/
+    ├── LegalTools.java          # Legal deadline, settlement, reference
+    ├── TranslateTools.java      # Multi-language translation
+    ├── UtilityTools.java        # Weather, geolocation, time
+    └── WebTools.java            # Search, calculator, world clock
 ```
 
-## 特性
-- SSE 流式输出
-- 多轮对话记忆（MessageChatMemoryAdvisor）
-- 会话管理（新建/切换/删除）
-- Redis 缓存
-- Better Call Saul 主题 UI
+## Status
+
+Working prototype. I experiment with agent patterns here — tool composition,
+memory strategies, intent routing. Architecture is real, rough edges are mine.
