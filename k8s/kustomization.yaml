@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+
+commonLabels:
+  app.kubernetes.io/name: agentsaul
+  app.kubernetes.io/part-of: agentsaul
+
+images:
+  - name: ${CI_REGISTRY_IMAGE}/agentsaul
+    newTag: ${IMAGE_TAG}
+
+configMapGenerator:
+  - name: agentsaul-config
+    behavior: replace
+    literals:
+      - SERVER_PORT=8080
+      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
+      - SPRING_DATA_REDIS_PORT=6379
+      - AI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode
+      - AI_MODEL=glm-5
+
+secretGenerator:
+  - name: agentsaul-secret
+    behavior: replace
+    literals:
+      - placeholder=true
