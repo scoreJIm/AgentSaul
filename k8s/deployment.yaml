@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentsaul
+  labels:
+    app: agentsaul
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: agentsaul
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: agentsaul
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: agentsaul
+          image: ${CI_REGISTRY_IMAGE}/agentsaul:${IMAGE_TAG}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: agentsaul-config
+            - secretRef:
+                name: agentsaul-secret
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agentsaul-config
+data:
+  SERVER_PORT: "8080"
+  SPRING_DATASOURCE_URL: "jdbc:mysql://${MYSQL_HOST}:3306/agent_saul?useUnicode=true&characterEncoding=UTF-8&useSSL=false"
+  SPRING_DATASOURCE_DRIVER_CLASS_NAME: "com.mysql.cj.jdbc.Driver"
+  SPRING_DATA_REDIS_PORT: "6379"
+  AI_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode"
+  AI_MODEL: "glm-5"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: agentsaul-secret
+type: Opaque
+stringData:
+  SPRING_DATASOURCE_USERNAME: "${DB_USERNAME}"
+  SPRING_DATASOURCE_PASSWORD: "${DB_PASSWORD}"
+  SPRING_DATA_REDIS_HOST: "${REDIS_HOST}"
+  SPRING_DATA_REDIS_PASSWORD: "${REDIS_PASSWORD}"
+  AI_API_KEY: "${AI_API_KEY}"
