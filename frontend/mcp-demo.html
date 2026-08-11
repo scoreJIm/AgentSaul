@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP Demo — AgentSaul Model Context Protocol</title>
+<style>
+  :root {
+    --bg: #1a1a2e; --panel: #16213e; --card: #0f3460;
+    --accent: #e94560; --gold: #c9a84c; --text: #e0e0e0;
+    --muted: #8899aa; --border: #2a2a4a; --green: #4caf84;
+    --blue: #4a9eff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
+  header { background: var(--panel); border-bottom: 2px solid var(--blue); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 1.2em; color: var(--blue); }
+  header .badge { font-size: 0.75em; background: var(--blue); color: #fff; padding: 3px 10px; border-radius: 12px; }
+  .container { flex: 1; display: flex; overflow: hidden; }
+  .main { flex: 1; display: flex; flex-direction: column; padding: 16px; gap: 12px; }
+  .panels { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; gap: 10px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
+  .panel-header { padding: 8px 12px; background: var(--card); font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .panel-body { flex: 1; overflow-y: auto; padding: 10px; font-size: 0.85em; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+  .tool-card { background: var(--bg); border: 1px solid var(--border); border-left: 3px solid var(--blue); padding: 10px; margin-bottom: 8px; border-radius: 4px; }
+  .tool-card .name { color: var(--blue); font-weight: 600; }
+  .tool-card .desc { color: var(--muted); font-size: 0.85em; margin-top: 4px; }
+  .tool-card .schema { font-size: 0.75em; color: var(--muted); margin-top: 6px; font-family: 'Consolas', monospace; background: var(--panel); padding: 4px 8px; border-radius: 3px; }
+  .input-area { display: flex; gap: 8px; }
+  .input-area input { flex: 1; background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 6px; font-size: 0.9em; outline: none; }
+  .input-area input:focus { border-color: var(--blue); }
+  .input-area button { background: var(--blue); color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+  .input-area button:hover { opacity: 0.9; }
+  .input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .sidebar { width: 300px; background: var(--panel); border-left: 1px solid var(--border); padding: 16px; overflow-y: auto; font-size: 0.82em; }
+  .sidebar h3 { color: var(--blue); margin-bottom: 10px; font-size: 0.9em; }
+  .arch-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin: 8px 0; font-family: 'Consolas', monospace; font-size: 0.75em; line-height: 1.8; }
+  .arch-box .client { color: var(--accent); }
+  .arch-box .server { color: var(--blue); }
+  .arch-box .arrow { color: var(--muted); }
+  .arch-box .protocol { color: var(--gold); }
+  #answerPanel .panel-body { color: #d4d4d4; }
+</style>
+</head>
+<body>
+<header>
+  <h1>MCP Demo — Model Context Protocol</h1>
+  <span class="badge">Protocol Demo</span>
+</header>
+<div class="container">
+  <div class="main">
+    <div class="input-area">
+      <input type="text" id="msgInput" placeholder="试试让 AI 使用 MCP 工具：查一下劳动合同的试用期规定 / 分析一个合同纠纷案件 / 现在几点？"
+             onkeydown="if(event.key==='Enter')send()">
+      <button id="sendBtn" onclick="send()">发送（MCP 工具）</button>
+      <button onclick="loadTools()" style="background:var(--card);font-size:0.8em;">刷新工具列表</button>
+    </div>
+    <div class="panels">
+      <div class="panel" id="toolsPanel">
+        <div class="panel-header">MCP 工具清单 <span class="count" id="toolCount">—</span></div>
+        <div class="panel-body" id="toolsBody"><em style="color:var(--muted)">加载中... 这些工具通过 MCP 协议暴露给 LLM</em></div>
+      </div>
+      <div class="panel" id="answerPanel" style="grid-row: 1 / 3; grid-column: 2;">
+        <div class="panel-header">MCP 对话（LLM + MCP 工具） <span class="count" id="answerStatus">—</span></div>
+        <div class="panel-body" id="answerBody"><em style="color:var(--muted)">通过 MCP 协议调用工具的 LLM 对话将在这里显示...</em></div>
+      </div>
+    </div>
+  </div>
+  <div class="sidebar">
+    <h3>MCP 架构</h3>
+    <div class="arch-box">
+      <span class="client">AgentSaul (MCP Client)</span><br>
+      <span class="arrow">  │  SSE/HTTP</span><br>
+      <span class="arrow">  │  </span><span class="protocol">JSON-RPC 2.0</span><br>
+      <span class="arrow">  ▼</span><br>
+      <span class="server">MCP Server (同进程)</span><br>
+      <span class="muted">  ├── legalStatuteLookup</span><br>
+      <span class="muted">  ├── mcpServerTime</span><br>
+      <span class="muted">  └── mcpCaseAnalyzer</span>
+    </div>
+
+    <h3 style="margin-top:16px;">什么是 MCP？</h3>
+    <p style="color:var(--muted);margin-top:6px;">
+      Model Context Protocol 是 Anthropic 提出的开放协议，标准化了 AI 应用与外部工具/数据源之间的通信方式。
+    </p>
+    <p style="color:var(--muted);margin-top:6px;">
+      <strong>核心概念：</strong><br>
+      1. <strong>Tool Discovery</strong> — Client 连接 Server 后自动发现可用工具<br>
+      2. <strong>Tool Invocation</strong> — LLM 决定调用工具 → Client 通过 MCP 发送请求 → Server 执行并返回<br>
+      3. <strong>标准化 Schema</strong> — 每个工具都有 JSON Schema 描述参数<br>
+      4. <strong>传输层抽象</strong> — 支持 SSE/STDIO/Streamable HTTP
+    </p>
+    <h3 style="margin-top:16px;">vs 直接 @Tool</h3>
+    <p style="color:var(--muted);margin-top:6px;">
+      传统方式：@Tool 注解直接注入 ChatClient，LLM → 本地方法调用<br><br>
+      MCP 方式：@Tool → MCP Server 暴露 → MCP Client 发现 → LLM 调用<br><br>
+      <strong>优势：</strong>工具提供者和消费者解耦，不同语言/进程/网络位置的工具可以统一管理
+    </p>
+  </div>
+</div>
+
+<script>
+async function loadTools() {
+  try {
+    const r = await fetch('/api/mcp/tools');
+    const tools = await r.json();
+    const body = document.getElementById('toolsBody');
+    document.getElementById('toolCount').textContent = tools.length + ' tools';
+    if (!tools.length) {
+      body.innerHTML = '<em style="color:var(--muted)">未发现 MCP 工具。请确保 MCP Server 已配置并运行。</em>';
+    } else {
+      body.innerHTML = tools.map(t => `
+        <div class="tool-card">
+          <div class="name">${escHtml(t.name)}</div>
+          <div class="desc">${escHtml(t.description||'')}</div>
+          <div class="schema">${escHtml(JSON.stringify(t.inputSchema||{},null,2))}</div>
+        </div>
+      `).join('');
+    }
+  } catch(e) { console.error(e); }
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s||'';
+  return d.innerHTML;
+}
+
+function send() {
+  const msg = document.getElementById('msgInput').value.trim();
+  if (!msg) return;
+  const btn = document.getElementById('sendBtn');
+
+  document.getElementById('answerBody').innerHTML = '';
+  document.getElementById('answerStatus').textContent = '处理中...';
+  btn.disabled = true;
+
+  fetch('/api/mcp/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: msg })
+  }).then(response => {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    function process() {
+      reader.read().then(({ done, value }) => {
+        if (done) { btn.disabled = false; return; }
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop();
+
+        for (const block of lines) {
+          const eventMatch = block.match(/^event:\s*(\w+)/m);
+          const dataMatch = block.match(/^data:\s*(.*)/ms);
+          if (!eventMatch || !dataMatch) continue;
+
+          const event = eventMatch[1];
+          let data = dataMatch[1];
+
+          if (event === 'tools') {
+            document.getElementById('answerStatus').textContent = 'LLM 可调用以下 MCP 工具...';
+          } else if (event === 'answer') {
+            // answer stream starts
+          } else if (event === 'done') {
+            btn.disabled = false;
+            document.getElementById('answerStatus').textContent = '完成';
+          } else if (event === 'error') {
+            document.getElementById('answerBody').innerHTML += '<div style="color:var(--accent)">错误: ' + escHtml(data) + '</div>';
+            btn.disabled = false;
+            document.getElementById('answerStatus').textContent = '错误';
+          }
+        }
+
+        const dataBlocks = buffer.split('\n\n');
+        for (const block of dataBlocks) {
+          const dm = block.match(/^data:\s*(.*)/ms);
+          if (dm && !block.match(/^event:/m)) {
+            const text = dm[1];
+            if (text && text !== '{}') {
+              document.getElementById('answerBody').innerHTML += escHtml(text);
+            }
+          }
+        }
+        process();
+      });
+    }
+    process();
+  }).catch(e => {
+    document.getElementById('answerBody').innerHTML = '<div style="color:var(--accent)">请求失败: ' + escHtml(e.message) + '</div>';
+    btn.disabled = false;
+  });
+}
+
+loadTools();
+</script>
+</body>
+</html>

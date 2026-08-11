@@ -1,12 +1,24 @@
 spring:
+  web:
+    resources:
+      static-locations: classpath:/static/,file:frontend/
+
   ai:
     openai:
       api-key: ${AI_API_KEY}
       base-url: ${AI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
       chat:
         options:
-          model: ${AI_MODEL:qwen3-vl-32b-thinking}
+          model: ${AI_MODEL:glm-5}
           temperature: 0.7
+
+  # MCP (Model Context Protocol) configuration
+  mcp:
+    client:
+      enabled: false  # 设为 true 启用 MCP Client 连接外部 MCP Server
+      connections:
+        local-mcp-server:
+          url: http://localhost:8080
 
   datasource:
     url: jdbc:mysql://localhost:3306/agent_saul?useUnicode=true&characterEncoding=UTF-8&createDatabaseIfNotExist=true&useSSL=false&serverTimezone=Asia/Shanghai
@@ -45,10 +57,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: always
+  metrics:
+    tags:
+      application: agentsaul
+  tracing:
+    sampling:
+      probability: 0.1
 
 server:
   port: ${SERVER_PORT:8080}
