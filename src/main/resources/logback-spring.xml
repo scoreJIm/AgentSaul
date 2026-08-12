@@ -1,9 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- 系统日志 → console -->
+    <!-- Plain text console appender for dev/!prod profiles -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) [%thread] %cyan(%logger{36}) - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- JSON stdout appender for prod profile -->
+    <appender name="JSON_STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdcKeyName>requestId</includeMdcKeyName>
+            <includeMdcKeyName>userId</includeMdcKeyName>
+            <includeMdcKeyName>traceId</includeMdcKeyName>
+            <includeMdcKeyName>spanId</includeMdcKeyName>
         </encoder>
     </appender>
 
@@ -43,33 +53,57 @@
         </encoder>
     </appender>
 
-    <!-- 业务日志：ChatService, Tool 类 -->
-    <logger name="com.agentsaul.service" level="INFO" additivity="false">
-        <appender-ref ref="BUSINESS"/>
-        <appender-ref ref="CONSOLE"/>
-    </logger>
-    <logger name="com.agentsaul.tool" level="INFO" additivity="false">
-        <appender-ref ref="BUSINESS"/>
-        <appender-ref ref="CONSOLE"/>
-    </logger>
+    <springProfile name="prod">
+        <!-- Production: JSON to stdout + file-based appenders -->
+        <logger name="com.agentsaul.service" level="INFO" additivity="false">
+            <appender-ref ref="BUSINESS"/>
+            <appender-ref ref="JSON_STDOUT"/>
+        </logger>
+        <logger name="com.agentsaul.tool" level="INFO" additivity="false">
+            <appender-ref ref="BUSINESS"/>
+            <appender-ref ref="JSON_STDOUT"/>
+        </logger>
+        <logger name="com.agentsaul.controller" level="INFO" additivity="false">
+            <appender-ref ref="API"/>
+            <appender-ref ref="JSON_STDOUT"/>
+        </logger>
+        <logger name="com.agentsaul.config" level="INFO" additivity="false">
+            <appender-ref ref="SYSTEM"/>
+            <appender-ref ref="JSON_STDOUT"/>
+        </logger>
+        <logger name="org.springframework.ai" level="WARN"/>
+        <logger name="org.mybatis" level="WARN"/>
+        <logger name="com.zaxxer.hikari" level="WARN"/>
+        <root level="INFO">
+            <appender-ref ref="SYSTEM"/>
+            <appender-ref ref="JSON_STDOUT"/>
+        </root>
+    </springProfile>
 
-    <!-- 接口日志：Controller -->
-    <logger name="com.agentsaul.controller" level="INFO" additivity="false">
-        <appender-ref ref="API"/>
-        <appender-ref ref="CONSOLE"/>
-    </logger>
-
-    <!-- 系统日志：config, Spring, MyBatis -->
-    <logger name="com.agentsaul.config" level="INFO" additivity="false">
-        <appender-ref ref="SYSTEM"/>
-        <appender-ref ref="CONSOLE"/>
-    </logger>
-    <logger name="org.springframework.ai" level="WARN"/>
-    <logger name="org.mybatis" level="WARN"/>
-    <logger name="com.zaxxer.hikari" level="WARN"/>
-
-    <root level="INFO">
-        <appender-ref ref="SYSTEM"/>
-        <appender-ref ref="CONSOLE"/>
-    </root>
+    <springProfile name="!prod">
+        <!-- Non-production: plain text console + file-based appenders -->
+        <logger name="com.agentsaul.service" level="INFO" additivity="false">
+            <appender-ref ref="BUSINESS"/>
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+        <logger name="com.agentsaul.tool" level="INFO" additivity="false">
+            <appender-ref ref="BUSINESS"/>
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+        <logger name="com.agentsaul.controller" level="INFO" additivity="false">
+            <appender-ref ref="API"/>
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+        <logger name="com.agentsaul.config" level="INFO" additivity="false">
+            <appender-ref ref="SYSTEM"/>
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+        <logger name="org.springframework.ai" level="WARN"/>
+        <logger name="org.mybatis" level="WARN"/>
+        <logger name="com.zaxxer.hikari" level="WARN"/>
+        <root level="INFO">
+            <appender-ref ref="SYSTEM"/>
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
 </configuration>
