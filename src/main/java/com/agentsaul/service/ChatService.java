@@ -9,6 +9,10 @@ import com.agentsaul.tool.LegalTools;
 import com.agentsaul.tool.TranslateTools;
 import com.agentsaul.tool.UtilityTools;
 import com.agentsaul.tool.WebTools;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.reactor.timelimiter.TimeLimiterOperator;
+import io.github.resilience4j.timelimiter.TimeLimiterRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +40,8 @@ public class ChatService {
     private final IntentParser intentParser;
     private final SessionManager sessionManager;
     private final ChatMemoryFactory chatMemoryFactory;
+    private final TimeLimiterRegistry timeLimiterRegistry;
+    private final MeterRegistry meterRegistry;
 
     @Value("${app.prompt.system}")
     private Resource systemPromptFile;
@@ -51,6 +57,8 @@ public class ChatService {
                        IntentParser intentParser,
                        SessionManager sessionManager,
                        ChatMemoryFactory chatMemoryFactory,
+                       TimeLimiterRegistry timeLimiterRegistry,
+                       MeterRegistry meterRegistry,
                        LegalTools legalTools,
                        UtilityTools utilityTools,
                        TranslateTools translateTools,
@@ -60,6 +68,8 @@ public class ChatService {
         this.intentParser = intentParser;
         this.sessionManager = sessionManager;
         this.chatMemoryFactory = chatMemoryFactory;
+        this.timeLimiterRegistry = timeLimiterRegistry;
+        this.meterRegistry = meterRegistry;
         this.chatClient = chatClientBuilder
                 .defaultTools(legalTools, utilityTools, translateTools, webTools)
                 .build();
@@ -82,7 +92,11 @@ public class ChatService {
      * Chat with session and user context.
      * sessionId comes from Spring Session (Redis-backed).
      * userId comes from JWT authentication.
+     *
+     * Protected by Resilience4j circuit breaker ("llmApi"): 3 failures → open for 30s.
+     * Protected by TimeLimiter ("llmApi"): 60s timeout applied to the LLM stream.
      */
+    @CircuitBreaker(name = "llmApi", fallbackMethod = "chatFallback")
     public Flux<String> chat(String sessionId, String userId, String userMessage) {
         Long userIdLong = parseUserId(userId);
         IntentParser.IntentResult intent = intentParser.parse(userMessage);
@@ -114,7 +128,7 @@ public class ChatService {
 
         StringBuilder fullResponse = new StringBuilder();
 
-        return chatClient.prompt()
+        Flux<String> llmStream = chatClient.prompt()
                 .advisors(memoryAdvisor)
                 .system(effectivePrompt)
                 .user(userMessage)
@@ -126,11 +140,30 @@ public class ChatService {
                     if (!response.isBlank()) {
                         log.debug("[Business] convId={} responseLen={}", conv.getId(), response.length());
                     }
-                })
-                .onErrorResume(e -> {
-                    log.error("[Business] convId={} error: {}", conv.getId(), e.getMessage());
-                    return Flux.just("Something went wrong: " + e.getMessage());
                 });
+
+        // Apply TimeLimiter (60s) to the reactive LLM stream.
+        // When the circuit breaker is CLOSED, the call proceeds normally and the
+        // TimeLimiterOperator enforces the timeout.  If the LLM stream emits no
+        // items within the configured duration a TimeoutException is signaled,
+        // which the CircuitBreaker aspect records as a failure.
+        return Flux.from(
+                TimeLimiterOperator.<String>of(timeLimiterRegistry.timeLimiter("llmApi"))
+                        .apply(llmStream)
+        );
+    }
+
+    /**
+     * Circuit breaker fallback for LLM API calls.
+     * Invoked when the circuit is OPEN or when a call fails while CLOSED/HALF_OPEN.
+     */
+    @SuppressWarnings("unused")
+    public Flux<String> chatFallback(String sessionId, String userId, String userMessage, Throwable t) {
+        log.warn("[Business] LLM API circuit breaker fallback triggered: sessionId={} userId={} error={}",
+                sessionId, userId, t.getMessage());
+        meterRegistry.counter("agentsaul.circuitbreaker.llmapi.fallback").increment();
+        return Flux.just("I'm sorry, I'm having trouble connecting to my brain right now. "
+                + "Please try again in a moment.");
     }
 
     private Conversation getOrCreateConversation(String sessionId, String userId, Long userIdLong) {

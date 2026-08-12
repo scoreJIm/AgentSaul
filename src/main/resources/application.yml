@@ -118,5 +118,34 @@ agentsaul:
       dimension: 1024
       batch-size: 20
 
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 10
+        minimum-number-of-calls: 3
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+    instances:
+      llmApi:
+        base-config: default
+  timelimiter:
+    instances:
+      llmApi:
+        timeout-duration: 60s
+        cancel-running-future: true
+  retry:
+    instances:
+      llmApi:
+        max-attempts: 3
+        wait-duration: 2s
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.client.ResourceAccessException
+
 logging:
   config: classpath:logback-spring.xml
