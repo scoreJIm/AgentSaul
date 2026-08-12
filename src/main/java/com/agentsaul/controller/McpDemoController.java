@@ -1,6 +1,11 @@
 package com.agentsaul.controller;
 
 import com.agentsaul.mcp.McpTools;
+import io.micrometer.core.annotation.Timed;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -15,6 +20,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/mcp")
+@Tag(name = "MCP Demo", description = "Model Context Protocol tool discovery and chat demonstration endpoints")
 public class McpDemoController {
 
     private static final Logger log = LoggerFactory.getLogger(McpDemoController.class);
@@ -27,6 +33,12 @@ public class McpDemoController {
     }
 
     @GetMapping("/tools")
+    @Timed(value = "mcp.tools.list", description = "Time taken to list MCP tools")
+    @Operation(summary = "List MCP tools", description = "Discovers and returns all MCP tools exposed by this server, "
+            + "including their names, descriptions, parameters, and JSON schemas")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "List of available MCP tools with schemas")
+    })
     public List<Map<String, Object>> listTools() {
         log.info("[MCP Demo] GET /tools");
         List<Map<String, Object>> tools = new ArrayList<>();
@@ -47,6 +59,15 @@ public class McpDemoController {
     }
 
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Timed(value = "mcp.chat.stream", description = "Time taken for MCP streaming chat")
+    @Operation(summary = "Chat via MCP tools (streaming)",
+            description = "Sends a message through the LLM with MCP tool access. "
+                    + "The LLM can invoke MCP tools for legal statute lookup, case analysis, and server time. "
+                    + "Response is streamed as SSE with typed events: answer, done, error.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "SSE stream with MCP-assisted response"),
+            @ApiResponse(responseCode = "400", description = "Empty message")
+    })
     public Flux<String> chat(@RequestBody Map<String, Object> body) {
         String message = (String) body.getOrDefault("message", "");
         log.info("[MCP Demo] chat msgLen={}", message.length());

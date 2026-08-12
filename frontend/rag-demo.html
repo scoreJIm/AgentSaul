@@ -6,126 +6,419 @@
 <title>RAG Demo — AgentSaul Prompt Engineering</title>
 <style>
   :root {
-    --bg: #1a1a2e; --panel: #16213e; --card: #0f3460;
-    --accent: #e94560; --gold: #c9a84c; --text: #e0e0e0;
-    --muted: #8899aa; --border: #2a2a4a; --green: #4caf84;
+    --bg: #0b0f19;
+    --surface: #131a2b;
+    --surface2: #1a2340;
+    --border: #1e2d4a;
+    --gold: #f59e0b;
+    --gold-dim: #b45309;
+    --red: #ef4444;
+    --cyan: #06b6d4;
+    --green: #22c55e;
+    --purple: #8b5cf6;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
-  header { background: var(--panel); border-bottom: 2px solid var(--gold); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
-  header h1 { font-size: 1.2em; color: var(--gold); }
-  header .badge { font-size: 0.75em; background: var(--accent); color: #fff; padding: 3px 10px; border-radius: 12px; }
-  .container { flex: 1; display: flex; overflow: hidden; }
-  .main { flex: 1; display: flex; flex-direction: column; padding: 16px; gap: 12px; }
-  .panels { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px; }
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
-  .panel-header { padding: 8px 12px; background: var(--card); font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-  .panel-header .count { font-size: 0.75em; color: var(--muted); }
-  .panel-body { flex: 1; overflow-y: auto; padding: 10px; font-size: 0.85em; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
-  .chunk-item { background: var(--bg); border-left: 3px solid var(--accent); padding: 8px 10px; margin-bottom: 8px; border-radius: 4px; font-size: 0.82em; }
-  .chunk-item .meta { font-size: 0.75em; color: var(--muted); margin-bottom: 4px; }
-  .input-area { display: flex; gap: 8px; align-items: center; }
-  .input-area input { flex: 1; background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 6px; font-size: 0.9em; outline: none; }
-  .input-area input:focus { border-color: var(--gold); }
-  .input-area button { background: var(--accent); color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; }
-  .input-area button:hover { opacity: 0.9; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: rgba(245,158,11,0.12); border-radius: 2px; }
+
+  /* ── NAV ── */
+  nav {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    height: 52px;
+    flex-shrink: 0;
+    gap: 20px;
+  }
+  .nav-brand {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: var(--text);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nav-brand em { color: var(--gold); font-style: normal; }
+  .nav-brand .icon {
+    width: 28px; height: 28px; border-radius: 7px;
+    background: linear-gradient(135deg, var(--gold), #d97706);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .nav-links { display: flex; gap: 4px; margin-left: 12px; }
+  .nav-links a, .nav-links span {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.15s;
+    color: var(--text2);
+  }
+  .nav-links a:hover { background: var(--surface2); color: var(--text); }
+  .nav-links span.active {
+    background: rgba(6,182,212,0.08);
+    border: 1px solid rgba(6,182,212,0.25);
+    color: var(--cyan);
+  }
+  .nav-badge {
+    margin-left: auto;
+    font-size: 0.7rem;
+    background: rgba(6,182,212,0.1);
+    border: 1px solid rgba(6,182,212,0.2);
+    color: var(--cyan);
+    padding: 3px 10px;
+    border-radius: 12px;
+  }
+
+  /* ── CONTAINER ── */
+  .container {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .panels {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 8px 12px;
+    background: var(--surface2);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text2);
+  }
+
+  .panel-header .count {
+    font-size: 0.65rem;
+    color: var(--text3);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .panel-body .empty { color: var(--text3); font-style: italic; }
+
+  /* ── CHUNK ITEMS ── */
+  .chunk-item {
+    background: var(--bg);
+    border-left: 3px solid var(--cyan);
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    border-radius: 4px;
+    font-size: 0.82rem;
+  }
+  .chunk-item .meta {
+    font-size: 0.72rem;
+    color: var(--text3);
+    margin-bottom: 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── PROMPT PANEL ── */
+  #promptPanel .panel-body {
+    color: var(--text2);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.76rem;
+  }
+
+  /* ── INPUT AREA ── */
+  .input-area {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .input-area input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 0.87rem;
+    outline: none;
+    font-family: inherit;
+  }
+  .input-area input:focus { border-color: var(--cyan); }
+  .input-area input::placeholder { color: var(--text3); }
+  .input-area button {
+    background: var(--cyan);
+    color: #000;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.82rem;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+  .input-area button:hover { opacity: 0.85; }
   .input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
-  .topk-label { display: flex; align-items: center; gap: 6px; font-size: 0.8em; color: var(--muted); }
-  .topk-label input { width: 50px; }
-  .sidebar { width: 280px; background: var(--panel); border-left: 1px solid var(--border); padding: 16px; overflow-y: auto; font-size: 0.82em; }
-  .sidebar h3 { color: var(--gold); margin-bottom: 10px; font-size: 0.9em; }
-  .stat-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border); }
-  .stat-row .val { color: var(--green); }
+  .input-area .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .input-area .btn-outline:hover { background: var(--surface2); border-color: var(--text3); }
+  .topk-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--text2);
+    white-space: nowrap;
+  }
+  .topk-label input {
+    width: 52px;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 290px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    padding: 16px;
+    overflow-y: auto;
+    font-size: 0.82rem;
+    flex-shrink: 0;
+  }
+  .sidebar h3 {
+    color: var(--cyan);
+    margin: 0 0 10px 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.78rem;
+  }
+  .stat-row .val { color: var(--green); font-family: 'JetBrains Mono', monospace; }
+  .stat-row .err { color: var(--red); font-size: 0.7rem; }
   .strategy-list { margin-top: 8px; }
-  .strategy-item { padding: 6px 8px; margin: 4px 0; background: var(--bg); border-radius: 4px; cursor: pointer; border: 1px solid transparent; }
-  .strategy-item:hover { border-color: var(--gold); }
-  .strategy-item.active { border-color: var(--accent); background: var(--card); }
-  #answerPanel .panel-body { color: #d4d4d4; }
-  #promptPanel .panel-body { color: var(--muted); font-family: 'Consolas', 'Courier New', monospace; font-size: 0.78em; }
-  .toast { position: fixed; top: 16px; right: 16px; background: var(--accent); color: #fff; padding: 10px 16px; border-radius: 6px; font-size: 0.85em; z-index: 999; display: none; }
-  .toast.error { background: #cc3333; }
-  .toast.show { display: block; animation: fadeIn 0.3s; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+  .strategy-item {
+    padding: 6px 8px;
+    margin: 4px 0;
+    background: var(--bg);
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    font-size: 0.78rem;
+    transition: all 0.15s;
+  }
+  .strategy-item:hover { border-color: var(--cyan); }
+  .strategy-item.active { border-color: var(--cyan); background: rgba(6,182,212,0.06); }
+  .strategy-item .name { font-weight: 600; color: var(--text); }
+  .strategy-item .info { color: var(--text3); font-size: 0.72rem; }
+  .sidebar p { color: var(--text2); margin-top: 6px; line-height: 1.5; }
+  .sidebar strong { color: var(--text); }
+
+  .error-banner {
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.2);
+    color: var(--red);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    display: none;
+    margin: 0 16px;
+    margin-top: 8px;
+  }
+  .error-banner.show { display: block; }
+  .error-banner .close-btn {
+    float: right;
+    background: none;
+    border: none;
+    color: var(--red);
+    cursor: pointer;
+    font-size: 1rem;
+    margin-left: 8px;
+  }
+
+  @media (max-width: 900px) {
+    .container { flex-direction: column; }
+    .sidebar {
+      width: 100%;
+      border-left: none;
+      border-top: 1px solid var(--border);
+      max-height: 200px;
+    }
+    .panels { grid-template-columns: 1fr; }
+    #answerPanel { grid-column: 1 !important; }
+    .nav-links { gap: 0; }
+    .nav-links a, .nav-links span { padding: 6px 8px; font-size: 0.7rem; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>RAG Demo — Prompt Engineering</h1>
-  <span class="badge">Retrieval-Augmented Generation</span>
-</header>
+
+<nav>
+  <a href="/" class="nav-brand">
+    <span class="icon">&#9878;</span>
+    Agent<em>Saul</em>
+  </a>
+  <div class="nav-links">
+    <a href="/">&#9878; Chat</a>
+    <span class="active">&#128214; RAG</span>
+    <a href="/mcp-demo.html">&#128295; MCP</a>
+  </div>
+  <span class="nav-badge">Retrieval-Augmented Generation</span>
+</nav>
+
+<div class="error-banner" id="errorBanner">
+  <span id="errorMsg"></span>
+  <button class="close-btn" onclick="hideError()">&times;</button>
+</div>
+
 <div class="container">
   <div class="main">
     <div class="input-area">
       <input type="text" id="queryInput" placeholder="输入法律问题，例如：劳动合同试用期最长多久？离婚冷静期是几天？"
              onkeydown="if(event.key==='Enter')ask()">
       <label class="topk-label">Top-K <input type="number" id="topK" value="3" min="1" max="10"></label>
-      <button id="askBtn" onclick="ask()">检索问答</button>
-      <button onclick="loadStats()" style="background:var(--card);font-size:0.8em;">刷新统计</button>
+      <button id="askBtn" onclick="ask()">&#9654; 检索问答</button>
+      <button class="btn-outline" onclick="loadStats()">&#8634; 刷新统计</button>
     </div>
     <div class="panels">
       <div class="panel" id="chunksPanel">
-        <div class="panel-header">检索到的文档块 <span class="count" id="chunkCount">—</span></div>
-        <div class="panel-body" id="chunksBody"><em style="color:var(--muted)">输入问题后，这里将展示检索到的相关法律知识块...</em></div>
+        <div class="panel-header">&#128269; 检索到的文档块 <span class="count" id="chunkCount">--</span></div>
+        <div class="panel-body" id="chunksBody">
+          <div class="empty">输入问题后展示检索到的相关法律知识块...</div>
+        </div>
       </div>
       <div class="panel" id="promptPanel">
-        <div class="panel-header">拼接后的完整 Prompt <span class="count" id="promptLen">—</span></div>
-        <div class="panel-body" id="promptBody"><em style="color:var(--muted)">这里将展示注入检索上下文后的完整系统 Prompt...</em></div>
+        <div class="panel-header">&#128221; 拼接后的完整 Prompt <span class="count" id="promptLen">--</span></div>
+        <div class="panel-body" id="promptBody">
+          <div class="empty">展示注入检索上下文后的完整系统 Prompt...</div>
+        </div>
       </div>
       <div class="panel" id="answerPanel" style="grid-column: 1 / -1;">
-        <div class="panel-header">LLM 回答 <span class="count" id="answerStatus">—</span></div>
-        <div class="panel-body" id="answerBody"><em style="color:var(--muted)">LLM 的流式回答将在这里实时显示...</em></div>
+        <div class="panel-header">&#128172; LLM 回答 <span class="count" id="answerStatus">--</span></div>
+        <div class="panel-body" id="answerBody">
+          <div class="empty">LLM 的流式回答将在这里实时显示...</div>
+        </div>
       </div>
     </div>
   </div>
+
   <div class="sidebar">
-    <h3>知识库统计</h3>
+    <h3>&#128202; 知识库统计</h3>
     <div id="statsContent">
-      <em style="color:var(--muted)">加载中...</em>
+      <div class="empty">加载中...</div>
     </div>
-    <h3 style="margin-top:16px;">分块策略对比</h3>
-    <div class="strategy-list" id="strategyList"></div>
-    <div style="margin-top:16px;">
-      <h3>什么是 RAG？</h3>
-      <p style="color:var(--muted);margin-top:6px;">
-        Retrieval-Augmented Generation 将用户问题先用来检索相关文档，再把这些文档作为"上下文"注入到 Prompt 中，让 LLM 基于检索到的知识来回答——而不是仅凭训练记忆。
-      </p>
-      <p style="color:var(--muted);margin-top:6px;">
-        <strong>Prompt Engineering 要点：</strong><br>
-        1. <strong>分块策略</strong>影响检索精度<br>
-        2. <strong>Prompt 模板</strong>决定 LLM 如何使用检索结果<br>
-        3. <strong>Top-K</strong>平衡召回率和准确率<br>
-        4. <strong>相似度阈值</strong>过滤不相关内容
-      </p>
+
+    <h3 style="margin-top:16px;">&#9878; 分块策略对比</h3>
+    <div class="strategy-list" id="strategyList">
+      <div class="empty">加载中...</div>
     </div>
+
+    <h3 style="margin-top:16px;">什么是 RAG?</h3>
+    <p>
+      Retrieval-Augmented Generation 将用户问题先用来检索相关文档，再把这些文档作为"上下文"注入到 Prompt 中，让 LLM 基于检索到的知识来回答&#8212;&#8212;而不是仅凭训练记忆。
+    </p>
+    <p>
+      <strong>Prompt Engineering 要点：</strong><br>
+      1. <strong>分块策略</strong>影响检索精度<br>
+      2. <strong>Prompt 模板</strong>决定 LLM 如何使用检索结果<br>
+      3. <strong>Top-K</strong>平衡召回率和准确率<br>
+      4. <strong>相似度阈值</strong>过滤不相关内容
+    </p>
   </div>
 </div>
-<div class="toast" id="toast"></div>
 
 <script>
 let currentStrategy = 'token';
 
+function showError(msg) {
+  document.getElementById('errorBanner').classList.add('show');
+  document.getElementById('errorMsg').textContent = msg;
+}
+function hideError() {
+  document.getElementById('errorBanner').classList.remove('show');
+}
+
 async function loadStats() {
+  const statsEl = document.getElementById('statsContent');
+  const stratList = document.getElementById('strategyList');
   try {
     const r = await fetch('/api/rag/stats');
+    if (!r.ok) throw new Error('Server returned ' + r.status);
     const s = await r.json();
-    document.getElementById('statsContent').innerHTML = `
+    statsEl.innerHTML = `
       <div class="stat-row"><span>文档数</span><span class="val">${s.documents}</span></div>
-      <div class="stat-row"><span>索引状态</span><span class="val" style="color:${s.indexed?'var(--green)':'var(--accent)'}">${s.indexed ? '已索引' : '未索引'}</span></div>
-      ${s.indexError ? `<div class="stat-row"><span>错误</span><span class="val" style="color:var(--accent)">${s.indexError.substring(0,60)}</span></div>` : ''}
+      <div class="stat-row"><span>索引状态</span><span class="val" style="color:${s.indexed?'var(--green)':'var(--red)'}">${s.indexed ? '已索引' : '未索引'}</span></div>
+      ${s.indexError ? `<div class="stat-row"><span>错误</span><span class="err">${escHtml(s.indexError.substring(0,60))}</span></div>` : ''}
       ${(s.strategies||[]).map(st => `
-        <div class="stat-row"><span>${st.name} 分块</span><span class="val">${st.chunks} 块 / 均${st.avgSize}字</span></div>
+        <div class="stat-row"><span>${stratLabel(st.name)} 分块</span><span class="val">${st.chunks} 块 / 均${st.avgSize}字</span></div>
       `).join('')}
     `;
 
-    const stratList = document.getElementById('strategyList');
     stratList.innerHTML = (s.strategies||[]).map(st => `
       <div class="strategy-item ${st.name===currentStrategy?'active':''}" onclick="previewChunks('${st.name}')">
-        <strong>${stratLabel(st.name)}</strong>
-        <span style="color:var(--muted);float:right">${st.chunks} chunks</span>
-        <br><small style="color:var(--muted)">均${st.avgSize}字/块</small>
+        <div class="name">${stratLabel(st.name)}</div>
+        <div class="info">${st.chunks} chunks, 均${st.avgSize}字/块</div>
       </div>
-    `).join('');
-  } catch(e) { console.error(e); }
+    `).join('') || '<div class="empty">无分块数据</div>';
+  } catch(e) {
+    console.error(e);
+    statsEl.innerHTML = '<div class="empty" style="color:var(--red)">加载失败: ' + escHtml(e.message) + '</div>';
+    showError('无法加载统计: ' + e.message);
+  }
 }
 
 function stratLabel(s) {
@@ -134,28 +427,34 @@ function stratLabel(s) {
 
 async function previewChunks(strategy) {
   currentStrategy = strategy;
+  const body = document.getElementById('chunksBody');
+  const countEl = document.getElementById('chunkCount');
   try {
     const r = await fetch('/api/rag/chunks?strategy=' + strategy);
+    if (!r.ok) throw new Error('Server returned ' + r.status);
     const chunks = await r.json();
-    const body = document.getElementById('chunksBody');
     if (!chunks.length) {
-      body.innerHTML = '<em style="color:var(--muted)">无 chunk 数据</em>';
-      document.getElementById('chunkCount').textContent = '0';
+      body.innerHTML = '<div class="empty">无 chunk 数据</div>';
+      countEl.textContent = '0';
     } else {
       body.innerHTML = chunks.map((c,i) => `
         <div class="chunk-item">
-          <div class="meta">#${i+1} | 来源: ${c.metadata?.source||'?'}</div>
+          <div class="meta">#${i+1} | 来源: ${escHtml(c.metadata?.source||'?')}</div>
           ${escHtml(c.text.substring(0,300))}${c.text.length>300?'...':''}
         </div>
       `).join('');
-      document.getElementById('chunkCount').textContent = chunks.length + ' chunks';
+      countEl.textContent = chunks.length + ' chunks';
     }
-  } catch(e) { console.error(e); }
+  } catch(e) {
+    console.error(e);
+    body.innerHTML = '<div class="empty" style="color:var(--red)">加载失败: ' + escHtml(e.message) + '</div>';
+    countEl.textContent = '0';
+  }
 }
 
 function escHtml(s) {
   const d = document.createElement('div');
-  d.textContent = s;
+  d.textContent = s||'';
   return d.innerHTML;
 }
 
@@ -165,12 +464,14 @@ function ask() {
   const topK = parseInt(document.getElementById('topK').value) || 3;
   const btn = document.getElementById('askBtn');
 
-  document.getElementById('chunksBody').innerHTML = '<em style="color:var(--muted)">检索中...</em>';
-  document.getElementById('promptBody').innerHTML = '<em style="color:var(--muted)">构建中...</em>';
-  document.getElementById('answerBody').innerHTML = '<em style="color:var(--muted)">等待回答...</em>';
-  document.getElementById('chunkCount').textContent = '—';
-  document.getElementById('promptLen').textContent = '—';
-  document.getElementById('answerStatus').textContent = '回答中...';
+  hideError();
+
+  document.getElementById('chunksBody').innerHTML = '<div class="empty">检索中...</div>';
+  document.getElementById('promptBody').innerHTML = '<div class="empty">构建中...</div>';
+  document.getElementById('answerBody').innerHTML = '<div class="empty">等待回答...</div>';
+  document.getElementById('chunkCount').textContent = '--';
+  document.getElementById('promptLen').textContent = '--';
+  document.getElementById('answerStatus').textContent = 'Processing...';
 
   btn.disabled = true;
   fetch('/api/rag/chat', {
@@ -178,16 +479,22 @@ function ask() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, topK })
   }).then(response => {
+    if (!response.ok) throw new Error('Server returned ' + response.status);
+
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
 
     function process() {
       reader.read().then(({ done, value }) => {
-        if (done) { btn.disabled = false; document.getElementById('answerStatus').textContent = '完成'; return; }
+        if (done) {
+          btn.disabled = false;
+          document.getElementById('answerStatus').textContent = 'Complete';
+          return;
+        }
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n\n');
-        buffer = lines.pop(); // keep incomplete last chunk
+        buffer = lines.pop();
 
         for (const block of lines) {
           const eventMatch = block.match(/^event:\s*(\w+)/m);
@@ -202,7 +509,7 @@ function ask() {
               const chunks = JSON.parse(data);
               const body = document.getElementById('chunksBody');
               if (!chunks.length) {
-                body.innerHTML = '<em style="color:var(--muted)">未检索到相关法律知识（相似度低于阈值）</em>';
+                body.innerHTML = '<div class="empty">未检索到相关法律知识（相似度低于阈值）</div>';
               } else {
                 body.innerHTML = chunks.map((c,i) => `
                   <div class="chunk-item">
@@ -220,15 +527,15 @@ function ask() {
             document.getElementById('answerBody').innerHTML = '';
           } else if (event === 'done') {
             btn.disabled = false;
-            document.getElementById('answerStatus').textContent = '完成';
+            document.getElementById('answerStatus').textContent = 'Complete';
           } else if (event === 'error') {
-            document.getElementById('answerBody').innerHTML = '<em style="color:var(--accent)">错误: ' + escHtml(data) + '</em>';
+            document.getElementById('answerBody').innerHTML = '<div style="color:var(--red);padding:4px 0">Error: ' + escHtml(data) + '</div>';
             btn.disabled = false;
-            document.getElementById('answerStatus').textContent = '错误';
+            document.getElementById('answerStatus').textContent = 'Error';
+            showError(data);
           }
         }
 
-        // Handle raw data (answer tokens after 'event: answer')
         const dataBlocks = buffer.split('\n\n');
         for (const block of dataBlocks) {
           const dm = block.match(/^data:\s*(.*)/ms);
@@ -240,16 +547,22 @@ function ask() {
           }
         }
         process();
+      }).catch(e => {
+        document.getElementById('answerBody').innerHTML = '<div style="color:var(--red);padding:4px 0">Stream error: ' + escHtml(e.message) + '</div>';
+        btn.disabled = false;
+        document.getElementById('answerStatus').textContent = 'Error';
+        showError('Stream error: ' + e.message);
       });
     }
     process();
   }).catch(e => {
-    document.getElementById('answerBody').innerHTML = '<em style="color:var(--accent)">请求失败: ' + escHtml(e.message) + '</em>';
+    document.getElementById('answerBody').innerHTML = '<div style="color:var(--red);padding:4px 0">Request failed: ' + escHtml(e.message) + '</div>';
     btn.disabled = false;
+    document.getElementById('answerStatus').textContent = 'Error';
+    showError('Request failed: ' + e.message);
   });
 }
 
-// Init
 loadStats();
 </script>
 </body>

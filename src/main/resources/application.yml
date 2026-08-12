@@ -84,5 +84,23 @@ app:
     system: classpath:prompts/saul-system.md
     legal: classpath:prompts/saul-legal.md
 
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  show-actuator: true
+
+agentsaul:
+  jwt:
+    secret: ${JWT_SECRET:changeme-this-is-a-dev-secret-key-min-32chars}
+    access-expiration: 30m
+    refresh-expiration: 7d
+  api-key: ${API_KEY:}
+
 logging:
   config: classpath:logback-spring.xml

@@ -1,6 +1,12 @@
 package com.agentsaul.controller;
 
 import com.agentsaul.rag.RagService;
+import io.micrometer.core.annotation.Timed;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
@@ -13,6 +19,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/rag")
+@Tag(name = "RAG", description = "Retrieval-Augmented Generation — search legal knowledge and augment LLM prompts")
 public class RagController {
 
     private static final Logger log = LoggerFactory.getLogger(RagController.class);
@@ -27,7 +34,17 @@ public class RagController {
      * Events: chunks (retrieved docs), prompt (augmented prompt), answer (LLM), done
      */
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<String> chat(@RequestBody Map<String, Object> body) {
+    @Timed(value = "rag.chat.stream", description = "Time taken for RAG streaming chat")
+    @Operation(summary = "RAG chat (streaming)",
+            description = "Performs Retrieval-Augmented Generation: retrieves relevant legal documents, "
+                    + "augments the LLM prompt with context, and streams the response as SSE events. "
+                    + "Events: chunks, prompt, answer, done, error.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "SSE stream with retrieved chunks, augmented prompt, and LLM answer"),
+            @ApiResponse(responseCode = "400", description = "Empty query")
+    })
+    public Flux<String> chat(
+            @RequestBody Map<String, Object> body) {
         String query = (String) body.getOrDefault("query", "");
         int topK = body.containsKey("topK") ? ((Number) body.get("topK")).intValue() : 3;
 
@@ -46,7 +63,14 @@ public class RagController {
      * Preview chunks for a given strategy.
      */
     @GetMapping("/chunks")
-    public List<Document> previewChunks(@RequestParam(defaultValue = "token") String strategy) {
+    @Timed(value = "rag.chunks.preview", description = "Time taken to preview chunks")
+    @Operation(summary = "Preview document chunks",
+            description = "Returns document chunks for the specified chunking strategy to help evaluate chunking quality")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "List of document chunks")
+    })
+    public List<Document> previewChunks(
+            @Parameter(description = "Chunking strategy: token, sentence, or paragraph") @RequestParam(defaultValue = "token") String strategy) {
         log.info("[RAG] GET /chunks strategy={}", strategy);
         return ragService.previewChunks(strategy);
     }
@@ -55,6 +79,12 @@ public class RagController {
      * Knowledge base stats: doc count, chunk counts per strategy, indexing status.
      */
     @GetMapping("/stats")
+    @Timed(value = "rag.stats", description = "Time taken to retrieve RAG stats")
+    @Operation(summary = "Get knowledge base statistics",
+            description = "Returns document count, chunk counts per strategy, and indexing status for the RAG knowledge base")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Stats object with document and chunk counts")
+    })
     public Map<String, Object> stats() {
         log.info("[RAG] GET /stats");
         return ragService.getStats();

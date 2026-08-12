@@ -4,120 +4,381 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MCP Demo — AgentSaul Model Context Protocol</title>
+<script src="https://cdn.tailwindcss.com"></script>
 <style>
   :root {
-    --bg: #1a1a2e; --panel: #16213e; --card: #0f3460;
-    --accent: #e94560; --gold: #c9a84c; --text: #e0e0e0;
-    --muted: #8899aa; --border: #2a2a4a; --green: #4caf84;
-    --blue: #4a9eff;
+    --bg: #0b0f19;
+    --surface: #131a2b;
+    --surface2: #1a2340;
+    --border: #1e2d4a;
+    --gold: #f59e0b;
+    --gold-dim: #b45309;
+    --red: #ef4444;
+    --cyan: #06b6d4;
+    --green: #22c55e;
+    --purple: #8b5cf6;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
-  header { background: var(--panel); border-bottom: 2px solid var(--blue); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
-  header h1 { font-size: 1.2em; color: var(--blue); }
-  header .badge { font-size: 0.75em; background: var(--blue); color: #fff; padding: 3px 10px; border-radius: 12px; }
-  .container { flex: 1; display: flex; overflow: hidden; }
-  .main { flex: 1; display: flex; flex-direction: column; padding: 16px; gap: 12px; }
-  .panels { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; gap: 10px; }
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
-  .panel-header { padding: 8px 12px; background: var(--card); font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-  .panel-body { flex: 1; overflow-y: auto; padding: 10px; font-size: 0.85em; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
-  .tool-card { background: var(--bg); border: 1px solid var(--border); border-left: 3px solid var(--blue); padding: 10px; margin-bottom: 8px; border-radius: 4px; }
-  .tool-card .name { color: var(--blue); font-weight: 600; }
-  .tool-card .desc { color: var(--muted); font-size: 0.85em; margin-top: 4px; }
-  .tool-card .schema { font-size: 0.75em; color: var(--muted); margin-top: 6px; font-family: 'Consolas', monospace; background: var(--panel); padding: 4px 8px; border-radius: 3px; }
-  .input-area { display: flex; gap: 8px; }
-  .input-area input { flex: 1; background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 6px; font-size: 0.9em; outline: none; }
-  .input-area input:focus { border-color: var(--blue); }
-  .input-area button { background: var(--blue); color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: rgba(245,158,11,0.12); border-radius: 2px; }
+
+  nav {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    height: 52px;
+    flex-shrink: 0;
+    gap: 20px;
+  }
+  .nav-brand {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: var(--text);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nav-brand em { color: var(--gold); font-style: normal; }
+  .nav-brand .icon {
+    width: 28px; height: 28px; border-radius: 7px;
+    background: linear-gradient(135deg, var(--gold), #d97706);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .nav-links { display: flex; gap: 4px; margin-left: 12px; }
+  .nav-links a, .nav-links span {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.15s;
+    color: var(--text2);
+  }
+  .nav-links a:hover { background: var(--surface2); color: var(--text); }
+  .nav-links span.active {
+    background: rgba(139,92,246,0.08);
+    border: 1px solid rgba(139,92,246,0.25);
+    color: var(--purple);
+  }
+  .nav-badge {
+    margin-left: auto;
+    font-size: 0.7rem;
+    background: rgba(139,92,246,0.1);
+    border: 1px solid rgba(139,92,246,0.2);
+    color: var(--purple);
+    padding: 3px 10px;
+    border-radius: 12px;
+  }
+
+  .container {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .panels {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 10px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 8px 12px;
+    background: var(--surface2);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text2);
+  }
+
+  .panel-header .count {
+    font-size: 0.65rem;
+    color: var(--text3);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .panel-body .empty { color: var(--text3); font-style: italic; }
+
+  .tool-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--purple);
+    padding: 10px;
+    margin-bottom: 8px;
+    border-radius: 4px;
+  }
+  .tool-card .tname { color: var(--purple); font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; }
+  .tool-card .tdesc { color: var(--text2); font-size: 0.8rem; margin-top: 4px; }
+  .tool-card .tschema { font-size: 0.68rem; color: var(--text3); margin-top: 6px; font-family: 'JetBrains Mono', monospace; background: rgba(0,0,0,0.2); padding: 6px 8px; border-radius: 3px; white-space: pre-wrap; word-break: break-all; }
+
+  .input-area {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .input-area input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 0.87rem;
+    outline: none;
+    font-family: inherit;
+  }
+  .input-area input:focus { border-color: var(--purple); }
+  .input-area input::placeholder { color: var(--text3); }
+  .input-area button {
+    background: var(--purple);
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.82rem;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
   .input-area button:hover { opacity: 0.9; }
   .input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
-  .sidebar { width: 300px; background: var(--panel); border-left: 1px solid var(--border); padding: 16px; overflow-y: auto; font-size: 0.82em; }
-  .sidebar h3 { color: var(--blue); margin-bottom: 10px; font-size: 0.9em; }
-  .arch-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin: 8px 0; font-family: 'Consolas', monospace; font-size: 0.75em; line-height: 1.8; }
-  .arch-box .client { color: var(--accent); }
-  .arch-box .server { color: var(--blue); }
-  .arch-box .arrow { color: var(--muted); }
-  .arch-box .protocol { color: var(--gold); }
-  #answerPanel .panel-body { color: #d4d4d4; }
+  .input-area .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .input-area .btn-outline:hover { background: var(--surface2); border-color: var(--text3); }
+
+  .sidebar {
+    width: 300px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    padding: 16px;
+    overflow-y: auto;
+    font-size: 0.82rem;
+    flex-shrink: 0;
+  }
+  .sidebar h3 {
+    color: var(--purple);
+    margin: 0 0 10px 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .arch-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    margin: 8px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    line-height: 1.8;
+  }
+  .arch-box .client { color: var(--gold); }
+  .arch-box .server { color: var(--purple); }
+  .arch-box .arrow { color: var(--text3); }
+  .arch-box .protocol { color: var(--cyan); }
+  .sidebar p { color: var(--text2); margin-top: 6px; line-height: 1.5; }
+  .sidebar strong { color: var(--text); }
+
+  .error-banner {
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.2);
+    color: var(--red);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    display: none;
+    margin-bottom: 8px;
+  }
+  .error-banner.show { display: block; }
+  .error-banner .close-btn {
+    float: right;
+    background: none;
+    border: none;
+    color: var(--red);
+    cursor: pointer;
+    font-size: 1rem;
+    margin-left: 8px;
+  }
+
+  @media (max-width: 900px) {
+    .container { flex-direction: column; }
+    .sidebar {
+      width: 100%;
+      border-left: none;
+      border-top: 1px solid var(--border);
+      max-height: 200px;
+    }
+    .panels { grid-template-columns: 1fr; }
+    #answerPanel { grid-row: auto !important; grid-column: auto !important; }
+    .nav-links { gap: 0; }
+    .nav-links a, .nav-links span { padding: 6px 8px; font-size: 0.7rem; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>MCP Demo — Model Context Protocol</h1>
-  <span class="badge">Protocol Demo</span>
-</header>
+
+<nav>
+  <a href="/" class="nav-brand">
+    <span class="icon">&#9878;</span>
+    Agent<em>Saul</em>
+  </a>
+  <div class="nav-links">
+    <a href="/">&#9878; Chat</a>
+    <a href="/rag-demo.html">&#128214; RAG</a>
+    <span class="active">&#128295; MCP</span>
+  </div>
+  <span class="nav-badge">Protocol Demo</span>
+</nav>
+
+<div class="error-banner" id="errorBanner">
+  <span id="errorMsg"></span>
+  <button class="close-btn" onclick="hideError()">&times;</button>
+</div>
+
 <div class="container">
   <div class="main">
     <div class="input-area">
-      <input type="text" id="msgInput" placeholder="试试让 AI 使用 MCP 工具：查一下劳动合同的试用期规定 / 分析一个合同纠纷案件 / 现在几点？"
+      <input type="text" id="msgInput" placeholder="试试让 AI 使用 MCP 工具：查一下劳动合同的试用期规定..."
              onkeydown="if(event.key==='Enter')send()">
-      <button id="sendBtn" onclick="send()">发送（MCP 工具）</button>
-      <button onclick="loadTools()" style="background:var(--card);font-size:0.8em;">刷新工具列表</button>
+      <button id="sendBtn" onclick="send()">&#9654; 发送</button>
+      <button class="btn-outline" onclick="loadTools()">&#8634; 刷新工具</button>
     </div>
     <div class="panels">
       <div class="panel" id="toolsPanel">
-        <div class="panel-header">MCP 工具清单 <span class="count" id="toolCount">—</span></div>
-        <div class="panel-body" id="toolsBody"><em style="color:var(--muted)">加载中... 这些工具通过 MCP 协议暴露给 LLM</em></div>
+        <div class="panel-header">&#128295; MCP 工具清单 <span class="count" id="toolCount">--</span></div>
+        <div class="panel-body" id="toolsBody">
+          <div class="empty">加载中... 这些工具通过 MCP 协议暴露给 LLM</div>
+        </div>
       </div>
       <div class="panel" id="answerPanel" style="grid-row: 1 / 3; grid-column: 2;">
-        <div class="panel-header">MCP 对话（LLM + MCP 工具） <span class="count" id="answerStatus">—</span></div>
-        <div class="panel-body" id="answerBody"><em style="color:var(--muted)">通过 MCP 协议调用工具的 LLM 对话将在这里显示...</em></div>
+        <div class="panel-header">&#128172; MCP 对话输出 <span class="count" id="answerStatus">--</span></div>
+        <div class="panel-body" id="answerBody">
+          <div class="empty">通过 MCP 协议调用工具的 LLM 对话将在这里显示...</div>
+        </div>
       </div>
     </div>
   </div>
+
   <div class="sidebar">
-    <h3>MCP 架构</h3>
+    <h3>&#128268; MCP 架构</h3>
     <div class="arch-box">
       <span class="client">AgentSaul (MCP Client)</span><br>
-      <span class="arrow">  │  SSE/HTTP</span><br>
-      <span class="arrow">  │  </span><span class="protocol">JSON-RPC 2.0</span><br>
-      <span class="arrow">  ▼</span><br>
+      <span class="arrow">  |</span><br>
+      <span class="arrow">  |  </span><span class="protocol">JSON-RPC 2.0</span><br>
+      <span class="arrow">  v</span><br>
       <span class="server">MCP Server (同进程)</span><br>
-      <span class="muted">  ├── legalStatuteLookup</span><br>
-      <span class="muted">  ├── mcpServerTime</span><br>
-      <span class="muted">  └── mcpCaseAnalyzer</span>
+      <span style="color:var(--text3)">  +-- legalStatuteLookup</span><br>
+      <span style="color:var(--text3)">  +-- mcpServerTime</span><br>
+      <span style="color:var(--text3)">  +-- mcpCaseAnalyzer</span>
     </div>
 
-    <h3 style="margin-top:16px;">什么是 MCP？</h3>
-    <p style="color:var(--muted);margin-top:6px;">
+    <h3 style="margin-top:16px;">什么是 MCP?</h3>
+    <p>
       Model Context Protocol 是 Anthropic 提出的开放协议，标准化了 AI 应用与外部工具/数据源之间的通信方式。
     </p>
-    <p style="color:var(--muted);margin-top:6px;">
+    <p>
       <strong>核心概念：</strong><br>
       1. <strong>Tool Discovery</strong> — Client 连接 Server 后自动发现可用工具<br>
-      2. <strong>Tool Invocation</strong> — LLM 决定调用工具 → Client 通过 MCP 发送请求 → Server 执行并返回<br>
+      2. <strong>Tool Invocation</strong> — LLM 决定调用工具 &#8594; Client 通过 MCP 发送请求 &#8594; Server 执行并返回<br>
       3. <strong>标准化 Schema</strong> — 每个工具都有 JSON Schema 描述参数<br>
       4. <strong>传输层抽象</strong> — 支持 SSE/STDIO/Streamable HTTP
     </p>
     <h3 style="margin-top:16px;">vs 直接 @Tool</h3>
-    <p style="color:var(--muted);margin-top:6px;">
-      传统方式：@Tool 注解直接注入 ChatClient，LLM → 本地方法调用<br><br>
-      MCP 方式：@Tool → MCP Server 暴露 → MCP Client 发现 → LLM 调用<br><br>
+    <p>
+      传统方式：@Tool 注解直接注入 ChatClient，LLM &#8594; 本地方法调用<br><br>
+      MCP 方式：@Tool &#8594; MCP Server 暴露 &#8594; MCP Client 发现 &#8594; LLM 调用<br><br>
       <strong>优势：</strong>工具提供者和消费者解耦，不同语言/进程/网络位置的工具可以统一管理
     </p>
   </div>
 </div>
 
 <script>
+function showError(msg) {
+  document.getElementById('errorBanner').classList.add('show');
+  document.getElementById('errorMsg').textContent = msg;
+}
+function hideError() {
+  document.getElementById('errorBanner').classList.remove('show');
+}
+
 async function loadTools() {
+  const body = document.getElementById('toolsBody');
+  const countEl = document.getElementById('toolCount');
   try {
     const r = await fetch('/api/mcp/tools');
+    if (!r.ok) throw new Error('Server returned ' + r.status);
     const tools = await r.json();
-    const body = document.getElementById('toolsBody');
-    document.getElementById('toolCount').textContent = tools.length + ' tools';
+    countEl.textContent = tools.length + ' tools';
     if (!tools.length) {
-      body.innerHTML = '<em style="color:var(--muted)">未发现 MCP 工具。请确保 MCP Server 已配置并运行。</em>';
+      body.innerHTML = '<div class="empty">未发现 MCP 工具。请检查 MCP Server 配置。</div>';
     } else {
       body.innerHTML = tools.map(t => `
         <div class="tool-card">
-          <div class="name">${escHtml(t.name)}</div>
-          <div class="desc">${escHtml(t.description||'')}</div>
-          <div class="schema">${escHtml(JSON.stringify(t.inputSchema||{},null,2))}</div>
+          <div class="tname">${escHtml(t.name)}</div>
+          <div class="tdesc">${escHtml(t.description||'')}</div>
+          <div class="tschema">${escHtml(JSON.stringify(t.inputSchema||t.parameters||{},null,2))}</div>
         </div>
       `).join('');
     }
-  } catch(e) { console.error(e); }
+  } catch(e) {
+    console.error(e);
+    body.innerHTML = '<div class="empty" style="color:var(--red)">加载失败: ' + escHtml(e.message) + '</div>';
+    showError('无法加载工具列表: ' + e.message);
+  }
 }
 
 function escHtml(s) {
@@ -131,8 +392,9 @@ function send() {
   if (!msg) return;
   const btn = document.getElementById('sendBtn');
 
+  hideError();
   document.getElementById('answerBody').innerHTML = '';
-  document.getElementById('answerStatus').textContent = '处理中...';
+  document.getElementById('answerStatus').textContent = 'Processing...';
   btn.disabled = true;
 
   fetch('/api/mcp/chat', {
@@ -140,13 +402,19 @@ function send() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message: msg })
   }).then(response => {
+    if (!response.ok) throw new Error('Server returned ' + response.status);
+
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
 
     function process() {
       reader.read().then(({ done, value }) => {
-        if (done) { btn.disabled = false; return; }
+        if (done) {
+          btn.disabled = false;
+          document.getElementById('answerStatus').textContent = 'Complete';
+          return;
+        }
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n\n');
         buffer = lines.pop();
@@ -157,19 +425,16 @@ function send() {
           if (!eventMatch || !dataMatch) continue;
 
           const event = eventMatch[1];
-          let data = dataMatch[1];
+          const data = dataMatch[1];
 
-          if (event === 'tools') {
-            document.getElementById('answerStatus').textContent = 'LLM 可调用以下 MCP 工具...';
-          } else if (event === 'answer') {
-            // answer stream starts
-          } else if (event === 'done') {
+          if (event === 'done') {
             btn.disabled = false;
-            document.getElementById('answerStatus').textContent = '完成';
+            document.getElementById('answerStatus').textContent = 'Complete';
           } else if (event === 'error') {
-            document.getElementById('answerBody').innerHTML += '<div style="color:var(--accent)">错误: ' + escHtml(data) + '</div>';
+            document.getElementById('answerBody').innerHTML += '<div style="color:var(--red);padding:4px 0">Error: ' + escHtml(data) + '</div>';
             btn.disabled = false;
-            document.getElementById('answerStatus').textContent = '错误';
+            document.getElementById('answerStatus').textContent = 'Error';
+            showError(data);
           }
         }
 
@@ -184,12 +449,19 @@ function send() {
           }
         }
         process();
+      }).catch(e => {
+        document.getElementById('answerBody').innerHTML += '<div style="color:var(--red);padding:4px 0">Stream error: ' + escHtml(e.message) + '</div>';
+        btn.disabled = false;
+        document.getElementById('answerStatus').textContent = 'Error';
+        showError('Stream error: ' + e.message);
       });
     }
     process();
   }).catch(e => {
-    document.getElementById('answerBody').innerHTML = '<div style="color:var(--accent)">请求失败: ' + escHtml(e.message) + '</div>';
+    document.getElementById('answerBody').innerHTML = '<div style="color:var(--red);padding:4px 0">Request failed: ' + escHtml(e.message) + '</div>';
     btn.disabled = false;
+    document.getElementById('answerStatus').textContent = 'Error';
+    showError('Request failed: ' + e.message);
   });
 }
 
