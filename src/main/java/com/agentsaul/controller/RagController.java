@@ -89,13 +89,83 @@ public class RagController {
     @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "rag.stats", description = "Time taken to retrieve RAG stats")
     @Operation(summary = "Get knowledge base statistics",
-            description = "Returns document count, chunk counts per strategy, and indexing status for the RAG knowledge base")
+            description = "Returns document count, chunk counts per strategy, embedding status, and indexing status for the RAG knowledge base")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Stats object with document and chunk counts")
     })
     public Map<String, Object> stats() {
         log.info("[RAG] GET /stats");
         return ragService.getStats();
+    }
+
+    /**
+     * Re-index all documents: clear cache, reload from classpath, re-embed.
+     */
+    @PostMapping("/reindex")
+    @PreAuthorize("hasRole('ADMIN')")
+    @RateLimit(limit = 5, windowSeconds = 300, scope = RateLimit.Scope.USER)
+    @Timed(value = "rag.reindex", description = "Time taken to reindex all documents")
+    @Operation(summary = "Re-index all documents",
+            description = "Clears embedding cache, reloads all documents from classpath, "
+                    + "re-embeds them, and updates the document store. "
+                    + "Useful after changing chunking strategies or embedding models.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Reindex result with document/chunk counts and duration"),
+            @ApiResponse(responseCode = "500", description = "Reindex failure")
+    })
+    public Map<String, Object> reindex() {
+        log.info("[RAG] POST /reindex");
+        return ragService.reindex();
+    }
+
+    /**
+     * Add or update a document in the knowledge base.
+     */
+    @PutMapping("/documents")
+    @PreAuthorize("hasRole('ADMIN')")
+    @RateLimit(limit = 10, windowSeconds = 60, scope = RateLimit.Scope.USER)
+    @Timed(value = "rag.documents.add", description = "Time taken to add a document")
+    @Operation(summary = "Add or update a document",
+            description = "Adds a new document (or updates an existing one) to the knowledge base. "
+                    + "The content is auto-chunked and embedded for semantic search.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Document added successfully with chunk count"),
+            @ApiResponse(responseCode = "400", description = "Missing filename or content")
+    })
+    public Map<String, Object> addDocument(@RequestBody Map<String, String> body) {
+        String filename = body.get("filename");
+        String content = body.get("content");
+
+        log.info("[RAG] PUT /documents filename={}, contentLen={}",
+                filename, content != null ? content.length() : 0);
+
+        if (filename == null || filename.isBlank()) {
+            return Map.of("status", "error", "message", "filename is required");
+        }
+        if (content == null || content.isBlank()) {
+            return Map.of("status", "error", "message", "content is required");
+        }
+
+        return ragService.addDocument(filename, content);
+    }
+
+    /**
+     * Remove a document from the knowledge base.
+     */
+    @DeleteMapping("/documents/{filename}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @RateLimit(limit = 10, windowSeconds = 60, scope = RateLimit.Scope.USER)
+    @Timed(value = "rag.documents.remove", description = "Time taken to remove a document")
+    @Operation(summary = "Remove a document",
+            description = "Removes a document and its embeddings from the knowledge base.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Document removed successfully"),
+            @ApiResponse(responseCode = "404", description = "Document not found")
+    })
+    public Map<String, Object> removeDocument(
+            @Parameter(description = "Document filename to remove") @PathVariable String filename) {
+        log.info("[RAG] DELETE /documents/{}", filename);
+        return ragService.removeDocument(filename);
     }
 
 }

@@ -107,6 +107,16 @@ agentsaul:
     access-expiration: 30m
     refresh-expiration: 7d
   api-key: ${API_KEY:}
+  rag:
+    retrieval:
+      strategy: hybrid  # hybrid, embedding, keyword
+      keyword-weight: 0.3
+      embedding-weight: 0.7
+      top-k: 5
+    embedding:
+      model: ${EMBEDDING_MODEL:text-embedding-v3}
+      dimension: 1024
+      batch-size: 20
 
 logging:
   config: classpath:logback-spring.xml
