@@ -187,6 +187,45 @@ public class ChatService {
         log.info("[Business] conversation deleted id={}", conversationId);
     }
 
+    public String exportConversation(Long conversationId, Long userIdLong) {
+        Conversation conv = conversationMapper.findByIdAndUserId(conversationId, userIdLong);
+        if (conv == null) {
+            return null;
+        }
+        List<Message> messages = messageMapper.findByConversationId(conversationId);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("# Conversation: ").append(conv.getTitle() != null ? conv.getTitle() : "Untitled").append("\n");
+        sb.append("Date: ").append(conv.getCreatedAt()).append("\n");
+        sb.append("Messages: ").append(messages.size()).append("\n\n");
+        sb.append("---\n\n");
+
+        for (Message msg : messages) {
+            String roleLabel = switch (msg.getRole()) {
+                case "user" -> "**User**";
+                case "assistant" -> "**AgentSaul**";
+                case "tool_call" ->
+                        "[Tool: " + (msg.getToolName() != null ? msg.getToolName() : "unknown") + "]";
+                case "tool_result" ->
+                        "[Tool Result: " + (msg.getToolName() != null ? msg.getToolName() : "unknown") + "]";
+                default -> "**" + msg.getRole() + "**";
+            };
+
+            sb.append(roleLabel);
+            if (msg.getCreatedAt() != null) {
+                sb.append(" (").append(msg.getCreatedAt()).append(")");
+            }
+            sb.append(":\n");
+            if (msg.getContent() != null) {
+                sb.append(msg.getContent()).append("\n");
+            }
+            sb.append("\n");
+        }
+
+        sb.append("---\n");
+        return sb.toString();
+    }
+
     public Long getConversationId(String sessionId) {
         return sessionManager.getConversationId(sessionId);
     }

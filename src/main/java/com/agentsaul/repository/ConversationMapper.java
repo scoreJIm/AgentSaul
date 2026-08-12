@@ -3,6 +3,7 @@ package com.agentsaul.repository;
 import com.agentsaul.entity.Conversation;
 import org.apache.ibatis.annotations.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
@@ -32,4 +33,7 @@ public interface ConversationMapper {
 
     @Delete("DELETE FROM conversations WHERE id = #{id} AND user_id = #{userId}")
     int deleteByIdAndUserId(@Param("id") Long id, @Param("userId") Long userId);
+
+    @Select("SELECT COUNT(*) FROM conversations WHERE created_at >= #{since}")
+    long countByCreatedAfter(@Param("since") LocalDateTime since);
 }

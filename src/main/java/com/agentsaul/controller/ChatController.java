@@ -16,11 +16,15 @@ import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -159,6 +163,35 @@ public class ChatController {
         Long userIdLong = parseUserId(userId);
         chatService.deleteConversation(id, userIdLong);
         return Map.of("status", "ok");
+    }
+
+    @GetMapping(value = "/conversations/{id}/export", produces = "text/markdown")
+    @PreAuthorize("hasRole('USER')")
+    @RateLimit(limit = 10, windowSeconds = 60, scope = RateLimit.Scope.USER)
+    @Timed(value = "chat.conversations.export", description = "Time taken to export a conversation")
+    @Operation(summary = "Export conversation as markdown",
+            description = "Exports a conversation and all its messages as a downloadable markdown file. "
+                    + "Users can only export their own conversations.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Markdown export of the conversation"),
+            @ApiResponse(responseCode = "404", description = "Conversation not found")
+    })
+    public ResponseEntity<String> exportConversation(
+            @Parameter(description = "Conversation ID") @PathVariable Long id) {
+        String userId = getCurrentUserId();
+        Long userIdLong = parseUserId(userId);
+        log.info("[API] GET /conversations/{}/export userId={}", id, userId);
+
+        String markdown = chatService.exportConversation(id, userIdLong);
+        if (markdown == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
+        }
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.valueOf("text/markdown"))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"conversation-" + id + ".md\"")
+                .body(markdown);
     }
 
     private String getCurrentUserId() {

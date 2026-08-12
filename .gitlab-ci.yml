@@ -54,11 +54,17 @@ docker-build:
 
 deploy:
   stage: deploy
-  image: alpine:latest
-  before_script:
-    - apk add --no-cache openssh-client
+  image: bitnami/kubectl:latest
+  variables:
+    KUBECONFIG: ${KUBE_CONFIG}
   script:
-    - ssh $DEPLOY_HOST "docker pull $DOCKER_IMAGE:$CI_COMMIT_SHORT_SHA && docker stop agentsaul || true && docker rm agentsaul || true && docker run -d --name agentsaul -p 8080:8080 --restart unless-stopped $DOCKER_IMAGE:$CI_COMMIT_SHORT_SHA"
+    - kubectl set image deployment/agentsaul agentsaul=$DOCKER_IMAGE:$CI_COMMIT_SHORT_SHA -n agentsaul
+    - kubectl rollout status deployment/agentsaul -n agentsaul --timeout=120s
+    - |
+      if [ $? -ne 0 ]; then
+        kubectl rollout undo deployment/agentsaul -n agentsaul
+        exit 1
+      fi
   only:
     - main
   when: manual
