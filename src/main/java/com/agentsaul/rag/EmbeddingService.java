@@ -51,59 +51,59 @@ public class EmbeddingService {
             return List.of();
         }
 
-        List<float[]> results = new ArrayList<>(chunks.size());
+        int total = chunks.size();
+        float[] zeroVec = new float[embeddingModel.dimensions()];
+        float[][] results = new float[total][];
         int batchSize = ragProperties.getEmbedding().getBatchSize();
 
-        for (int i = 0; i < chunks.size(); i += batchSize) {
-            int end = Math.min(i + batchSize, chunks.size());
-            List<String> batch = chunks.subList(i, end);
+        for (int i = 0; i < total; i += batchSize) {
+            int end = Math.min(i + batchSize, total);
+            int batchLen = end - i;
 
-            List<String> textsToEmbed = new ArrayList<>();
-            List<Integer> cacheMissIndices = new ArrayList<>();
+            List<String> textsToEmbed = new ArrayList<>(batchLen);
+            int[] missGlobalIndices = new int[batchLen];
+            int missCount = 0;
 
-            for (int j = 0; j < batch.size(); j++) {
-                String text = batch.get(j);
+            for (int j = 0; j < batchLen; j++) {
+                int globalIdx = i + j;
+                String text = chunks.get(globalIdx);
                 float[] cached = cache.get(text);
                 if (cached != null) {
-                    results.add(cached);
+                    results[globalIdx] = cached;
                 } else {
                     textsToEmbed.add(text);
-                    cacheMissIndices.add(i + j);
+                    missGlobalIndices[missCount++] = globalIdx;
                 }
             }
 
-            if (!textsToEmbed.isEmpty()) {
+            if (missCount > 0) {
                 try {
                     List<float[]> batchEmbeddings = embeddingModel.embed(textsToEmbed);
-                    // Map results back to original positions
-                    int resultIdx = 0;
-                    for (int j = 0; j < batch.size(); j++) {
-                        int globalIdx = i + j;
-                        if (cacheMissIndices.contains(globalIdx)) {
-                            float[] emb = batchEmbeddings.get(resultIdx++);
-                            cache.put(batch.get(j), emb);
-                            results.add(emb);
-                        }
+                    for (int k = 0; k < batchEmbeddings.size() && k < missCount; k++) {
+                        float[] emb = batchEmbeddings.get(k);
+                        int globalIdx = missGlobalIndices[k];
+                        cache.put(chunks.get(globalIdx), emb);
+                        results[globalIdx] = emb;
                     }
                 } catch (Exception e) {
                     log.error("Embedding API call failed for batch {}-{}: {}", i, end, e.getMessage());
                     available = false;
-                    // Return partial results with zero vectors for failed batch
-                    for (int j = 0; j < batch.size(); j++) {
-                        int globalIdx = i + j;
-                        if (cacheMissIndices.contains(globalIdx)) {
-                            results.add(new float[embeddingModel.dimensions()]);
-                        }
+                    for (int k = 0; k < missCount; k++) {
+                        results[missGlobalIndices[k]] = zeroVec;
                     }
                 }
             }
         }
 
+        // Replace any remaining nulls with zero vectors
+        List<float[]> finalResults = new ArrayList<>(total);
+        for (int i = 0; i < total; i++) {
+            finalResults.add(results[i] != null ? results[i] : zeroVec);
+        }
+
         log.debug("Embedded {} chunks ({} cache hits, {} API calls)",
-                chunks.size(),
-                chunks.size() - cacheMissCount(chunks),
-                cacheMissCount(chunks));
-        return results;
+                total, total - cacheMissCount(chunks), cacheMissCount(chunks));
+        return finalResults;
     }
 
     /**
