@@ -101,8 +101,6 @@ public class RateLimitAspect {
     private String buildKey(RateLimit annotation) {
         String scope = annotation.scope().name().toLowerCase();
         String identifier = resolveIdentifier(annotation.scope());
-        MethodSignature signature = (MethodSignature) null; // not available here
-        String method = ""; // will be filled by @Around
         return "ratelimit:" + scope + ":" + identifier + ":" + getMethodKey();
     }
 
