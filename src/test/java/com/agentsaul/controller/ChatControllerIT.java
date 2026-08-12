@@ -1,5 +1,7 @@
 package com.agentsaul.controller;
 
+import com.agentsaul.config.SecurityConfig;
+import com.agentsaul.security.JwtTokenProvider;
 import com.agentsaul.service.ChatService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -7,7 +9,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import reactor.core.publisher.Flux;
 
@@ -19,14 +23,17 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ChatController.class)
+@Import(SecurityConfig.class)
 @DisplayName("Chat API Integration Tests")
 class ChatControllerIT {
 
     @Autowired private MockMvc mockMvc;
     @MockBean private ChatService chatService;
+    @MockBean private JwtTokenProvider jwtTokenProvider;
 
     @Nested
     @DisplayName("GET /api/session")
+    @WithMockUser(username = "testuser", roles = "USER")
     class SessionInfo {
 
         @Test
@@ -37,7 +44,8 @@ class ChatControllerIT {
 
             mockMvc.perform(get("/api/session"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.sessionId").value("test-uuid-123"))
+                    .andExpect(jsonPath("$.userId").value("testuser"))
+                    .andExpect(jsonPath("$.uuid").value("test-uuid-123"))
                     .andExpect(jsonPath("$.conversationId").value("1"));
         }
 
@@ -55,13 +63,14 @@ class ChatControllerIT {
 
     @Nested
     @DisplayName("POST /api/chat")
+    @WithMockUser(username = "testuser", roles = "USER")
     class Chat {
 
         @Test
         @DisplayName("should return SSE stream for chat message")
         void shouldReturnSseStream() throws Exception {
             when(chatService.getOrCreateUuid(anyString())).thenReturn("test-uuid");
-            when(chatService.streamChat(anyString(), anyString(), any()))
+            when(chatService.chat(anyString(), anyString()))
                     .thenReturn(Flux.just("Hello", " ", "World"));
 
             mockMvc.perform(post("/api/chat")

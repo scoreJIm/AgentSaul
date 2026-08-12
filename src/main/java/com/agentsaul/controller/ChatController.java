@@ -1,5 +1,7 @@
 package com.agentsaul.controller;
 
+import com.agentsaul.annotation.RateLimit;
+import com.agentsaul.dto.ChatRequest;
 import com.agentsaul.entity.Conversation;
 import com.agentsaul.entity.Message;
 import com.agentsaul.service.ChatService;
@@ -9,12 +11,14 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -33,52 +37,62 @@ public class ChatController {
     }
 
     @GetMapping("/session")
+    @PreAuthorize("hasRole('USER')")
     @Timed(value = "chat.session.info", description = "Time taken to retrieve session info")
-    @Operation(summary = "Get session info", description = "Returns the current HTTP session ID and associated conversation ID")
+    @Operation(summary = "Get session info", description = "Returns the current user ID and associated conversation ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Session info retrieved successfully")
     })
-    public Map<String, String> sessionInfo(HttpSession session) {
-        String uuid = chatService.getOrCreateUuid(session.getId());
-        Long convId = chatService.getConversationId(session.getId());
+    public Map<String, String> sessionInfo() {
+        String userId = getCurrentUserId();
+        Long convId = chatService.getConversationId(userId);
+        String uuid = chatService.getOrCreateUuid("user:" + userId);
         return Map.of(
-                "sessionId", uuid,
+                "userId", userId,
+                "uuid", uuid,
                 "conversationId", convId != null ? String.valueOf(convId) : "none"
         );
     }
 
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PreAuthorize("hasRole('USER')")
+    @RateLimit(limit = 20, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "chat.stream", description = "Time taken for streaming chat response")
     @Operation(summary = "Send a chat message (streaming)",
             description = "Sends a user message and returns an SSE stream of AI responses. "
                     + "The AI may invoke tools (weather, location, legal, translation, etc.) based on the message content.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "SSE stream of AI response chunks"),
-            @ApiResponse(responseCode = "400", description = "Empty message")
+            @ApiResponse(responseCode = "400", description = "Empty message or validation error")
     })
-    public Flux<String> chat(
-            @RequestBody Map<String, Object> body,
-            HttpSession session) {
-        String message = (String) body.getOrDefault("message", "");
-        log.info("[API] POST /chat session={} msgLen={}", chatService.getOrCreateUuid(session.getId()), message.length());
+    public Flux<String> chat(@Valid @RequestBody ChatRequest request) {
+        String userId = getCurrentUserId();
+        String message = request.getMessage();
+        log.info("[API] POST /chat userId={} msgLen={}", userId, message.length());
         if (message.isBlank()) {
             return Flux.just("You haven't said anything, counselor.");
         }
-        return chatService.chat(session.getId(), message);
+        return chatService.chat(userId, message);
     }
 
     @GetMapping("/conversations")
+    @PreAuthorize("hasRole('USER')")
+    @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "chat.conversations.list", description = "Time taken to list conversations")
-    @Operation(summary = "List all conversations", description = "Returns all saved chat conversations ordered by creation time descending")
+    @Operation(summary = "List all conversations", description = "Returns all saved chat conversations for the current user ordered by creation time descending")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "List of conversations")
     })
     public List<Conversation> listConversations() {
-        log.info("[API] GET /conversations");
-        return chatService.listConversations();
+        String userId = getCurrentUserId();
+        log.info("[API] GET /conversations userId={}", userId);
+        Long userIdLong = parseUserId(userId);
+        return chatService.listConversations(userIdLong);
     }
 
     @GetMapping("/conversations/{id}/messages")
+    @PreAuthorize("hasRole('USER')")
+    @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "chat.conversations.messages", description = "Time taken to retrieve conversation messages")
     @Operation(summary = "Get conversation messages", description = "Returns all messages (user, assistant, tool calls) for a given conversation")
     @ApiResponses({
@@ -92,6 +106,8 @@ public class ChatController {
     }
 
     @GetMapping("/conversations/{id}/tools")
+    @PreAuthorize("hasRole('USER')")
+    @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "chat.conversations.tools", description = "Time taken to retrieve tool call records")
     @Operation(summary = "Get conversation tool calls", description = "Returns all tool call and tool result messages for a given conversation")
     @ApiResponses({
@@ -105,6 +121,8 @@ public class ChatController {
     }
 
     @DeleteMapping("/conversations/{id}")
+    @PreAuthorize("hasRole('USER')")
+    @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "chat.conversations.delete", description = "Time taken to delete a conversation")
     @Operation(summary = "Delete a conversation", description = "Permanently deletes a conversation and all its messages")
     @ApiResponses({
@@ -113,8 +131,26 @@ public class ChatController {
     })
     public Map<String, String> deleteConversation(
             @Parameter(description = "Conversation ID") @PathVariable Long id) {
-        log.info("[API] DELETE /conversations/{}", id);
-        chatService.deleteConversation(id);
+        String userId = getCurrentUserId();
+        log.info("[API] DELETE /conversations/{} userId={}", id, userId);
+        Long userIdLong = parseUserId(userId);
+        chatService.deleteConversation(id, userIdLong);
         return Map.of("status", "ok");
+    }
+
+    private String getCurrentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated()) {
+            return auth.getName();
+        }
+        return "anonymous";
+    }
+
+    private Long parseUserId(String userId) {
+        try {
+            return Long.parseLong(userId);
+        } catch (NumberFormatException e) {
+            return (long) Math.abs(userId.hashCode());
+        }
     }
 }

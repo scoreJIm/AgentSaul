@@ -1,5 +1,6 @@
 package com.agentsaul.controller;
 
+import com.agentsaul.annotation.RateLimit;
 import com.agentsaul.mcp.McpTools;
 import io.micrometer.core.annotation.Timed;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
@@ -33,6 +35,8 @@ public class McpDemoController {
     }
 
     @GetMapping("/tools")
+    @PreAuthorize("hasRole('USER')")
+    @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "mcp.tools.list", description = "Time taken to list MCP tools")
     @Operation(summary = "List MCP tools", description = "Discovers and returns all MCP tools exposed by this server, "
             + "including their names, descriptions, parameters, and JSON schemas")
@@ -59,6 +63,8 @@ public class McpDemoController {
     }
 
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PreAuthorize("hasRole('USER')")
+    @RateLimit(limit = 10, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "mcp.chat.stream", description = "Time taken for MCP streaming chat")
     @Operation(summary = "Chat via MCP tools (streaming)",
             description = "Sends a message through the LLM with MCP tool access. "

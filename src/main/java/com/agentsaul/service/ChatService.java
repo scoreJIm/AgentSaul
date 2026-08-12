@@ -38,12 +38,12 @@ public class ChatService {
     private final MessageMapper messageMapper;
     private final IntentParser intentParser;
 
-    // session-scoped memory: each session gets its own sliding window
-    private final ChatMemory chatMemory = MessageWindowChatMemory.builder()
-            .maxMessages(20)
-            .build();
+    // per-user sliding window chat memory (keyed by "user:{userId}")
+    private final Map<String, ChatMemory> userMemoryMap = new ConcurrentHashMap<>();
 
-    private final Map<String, Long> sessionConvMap = new ConcurrentHashMap<>();
+    // userId -> current conversationId
+    private final Map<String, Long> userConvMap = new ConcurrentHashMap<>();
+    // sessionId/identifier -> display UUID
     private final Map<String, String> sessionUuidMap = new ConcurrentHashMap<>();
 
     @Value("${app.prompt.system}")
@@ -83,42 +83,50 @@ public class ChatService {
         }
     }
 
-    public String getOrCreateUuid(String sessionId) {
-        return sessionUuidMap.computeIfAbsent(sessionId, k -> UUID.randomUUID().toString().substring(0, 8));
+    public String getOrCreateUuid(String key) {
+        return sessionUuidMap.computeIfAbsent(key, k -> UUID.randomUUID().toString().substring(0, 8));
     }
 
-    public Flux<String> chat(String sessionId, String userMessage) {
+    /**
+     * Chat with user context. userId comes from JWT authentication.
+     */
+    public Flux<String> chat(String userId, String userMessage) {
+        Long userIdLong = parseUserId(userId);
         IntentParser.IntentResult intent = intentParser.parse(userMessage);
-        Conversation conv = getOrCreateConversation(sessionId);
+        Conversation conv = getOrCreateConversation(userId, userIdLong);
 
         if (conv.getTitle() == null || conv.getTitle().isBlank()) {
             conv.setTitle(userMessage.length() > 50 ? userMessage.substring(0, 50) + "..." : userMessage);
             conversationMapper.updateTitle(conv);
         }
 
-        // save user message — MyBatis auto-commits
+        // save user message
         Message userMsg = new Message();
         userMsg.setConversationId(conv.getId());
         userMsg.setRole("user");
         userMsg.setContent(userMessage);
         messageMapper.insert(userMsg);
 
-        String uuid = getOrCreateUuid(sessionId);
+        String uuid = getOrCreateUuid("user:" + userId);
 
-        log.info("[Business] session={} uuid={} convId={} intent={} lang={}",
-                sessionId, uuid, conv.getId(), intent.intent(), intent.language());
+        log.info("[Business] userId={} uuid={} convId={} intent={} lang={}",
+                userId, uuid, conv.getId(), intent.intent(), intent.language());
 
         String effectivePrompt = systemPrompt;
         if ("zh".equals(intent.language())) {
             effectivePrompt += "\n用户说中文，请用中文回复。";
         }
 
-        StringBuilder fullResponse = new StringBuilder();
+        // per-user chat memory keyed by userId
+        String memoryKey = "user:" + userId;
+        ChatMemory memory = userMemoryMap.computeIfAbsent(memoryKey,
+                k -> MessageWindowChatMemory.builder().maxMessages(20).build());
 
-        // per-call memory advisor keyed by session → no cross-session bleed
-        MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory)
-                .conversationId(sessionId)
+        MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(memory)
+                .conversationId(memoryKey)
                 .build();
+
+        StringBuilder fullResponse = new StringBuilder();
 
         return chatClient.prompt()
                 .advisors(memoryAdvisor)
@@ -143,20 +151,24 @@ public class ChatService {
                 });
     }
 
-    private Conversation getOrCreateConversation(String sessionId) {
-        Long convId = sessionConvMap.get(sessionId);
+    private Conversation getOrCreateConversation(String userId, Long userIdLong) {
+        Long convId = userConvMap.get(userId);
         if (convId != null) {
-            Conversation conv = conversationMapper.findById(convId);
+            Conversation conv = conversationMapper.findByIdAndUserId(convId, userIdLong);
             if (conv != null) return conv;
         }
         Conversation conv = new Conversation();
+        conv.setUserId(userIdLong);
         conversationMapper.insert(conv);
-        sessionConvMap.put(sessionId, conv.getId());
-        log.info("[Business] new conversation id={} for session={}", conv.getId(), sessionId);
+        userConvMap.put(userId, conv.getId());
+        log.info("[Business] new conversation id={} for userId={}", conv.getId(), userId);
         return conv;
     }
 
-    public List<Conversation> listConversations() {
+    public List<Conversation> listConversations(Long userIdLong) {
+        if (userIdLong != null) {
+            return conversationMapper.findByUserId(userIdLong);
+        }
         return conversationMapper.findAll();
     }
 
@@ -171,14 +183,27 @@ public class ChatService {
     }
 
     @CacheEvict(value = {"convMessages", "toolCalls"}, key = "#conversationId")
-    public void deleteConversation(Long conversationId) {
-        messageMapper.deleteByConversationId(conversationId);
-        conversationMapper.deleteById(conversationId);
-        sessionConvMap.entrySet().removeIf(e -> e.getValue().equals(conversationId));
+    public void deleteConversation(Long conversationId, Long userIdLong) {
+        if (userIdLong != null) {
+            conversationMapper.deleteByIdAndUserId(conversationId, userIdLong);
+        } else {
+            messageMapper.deleteByConversationId(conversationId);
+            conversationMapper.deleteById(conversationId);
+        }
+        userConvMap.entrySet().removeIf(e -> e.getValue().equals(conversationId));
         log.info("[Business] conversation deleted id={}", conversationId);
     }
 
-    public Long getConversationId(String sessionId) {
-        return sessionConvMap.get(sessionId);
+    public Long getConversationId(String userId) {
+        return userConvMap.get(userId);
+    }
+
+    private Long parseUserId(String userId) {
+        try {
+            return Long.parseLong(userId);
+        } catch (NumberFormatException e) {
+            // for non-numeric user IDs (e.g., "apikey-user"), use a hash
+            return (long) Math.abs(userId.hashCode());
+        }
     }
 }

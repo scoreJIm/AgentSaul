@@ -1,5 +1,6 @@
 package com.agentsaul.controller;
 
+import com.agentsaul.annotation.RateLimit;
 import com.agentsaul.rag.RagService;
 import io.micrometer.core.annotation.Timed;
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
@@ -34,6 +36,8 @@ public class RagController {
      * Events: chunks (retrieved docs), prompt (augmented prompt), answer (LLM), done
      */
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PreAuthorize("hasRole('USER')")
+    @RateLimit(limit = 10, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "rag.chat.stream", description = "Time taken for RAG streaming chat")
     @Operation(summary = "RAG chat (streaming)",
             description = "Performs Retrieval-Augmented Generation: retrieves relevant legal documents, "
@@ -63,6 +67,8 @@ public class RagController {
      * Preview chunks for a given strategy.
      */
     @GetMapping("/chunks")
+    @PreAuthorize("hasRole('USER')")
+    @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "rag.chunks.preview", description = "Time taken to preview chunks")
     @Operation(summary = "Preview document chunks",
             description = "Returns document chunks for the specified chunking strategy to help evaluate chunking quality")
@@ -79,6 +85,8 @@ public class RagController {
      * Knowledge base stats: doc count, chunk counts per strategy, indexing status.
      */
     @GetMapping("/stats")
+    @PreAuthorize("hasRole('USER')")
+    @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "rag.stats", description = "Time taken to retrieve RAG stats")
     @Operation(summary = "Get knowledge base statistics",
             description = "Returns document count, chunk counts per strategy, and indexing status for the RAG knowledge base")

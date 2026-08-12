@@ -29,10 +29,16 @@ CREATE TABLE IF NOT EXISTS messages (
     CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- Migration: add user_id to existing conversations table if missing
-SET @sql = IFNULL((SELECT 'ALTER TABLE conversations ADD COLUMN user_id BIGINT'
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = 'agent_saul' AND TABLE_NAME = 'conversations' AND COLUMN_NAME = 'user_id'), 'SELECT 1');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
+-- Migration: add user_id to existing conversations table (idempotent via stored procedure)
+DROP PROCEDURE IF EXISTS add_column_if_not_exists;
+DELIMITER //
+CREATE PROCEDURE add_column_if_not_exists()
+BEGIN
+    IF NOT EXISTS (SELECT * FROM information_schema.COLUMNS
+                   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'conversations' AND COLUMN_NAME = 'user_id') THEN
+        ALTER TABLE conversations ADD COLUMN user_id BIGINT;
+    END IF;
+END //
+DELIMITER ;
+CALL add_column_if_not_exists();
+DROP PROCEDURE IF EXISTS add_column_if_not_exists;
