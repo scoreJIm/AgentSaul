@@ -1,6 +1,5 @@
 package com.agentsaul.rag;
 
-import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import jakarta.annotation.PostConstruct;
@@ -40,7 +39,6 @@ public class RagService {
     private final RagProperties ragProperties;
 
     private final Timer embeddingDurationTimer;
-    private final DistributionSummary hybridScoreSummary;
 
     static final String RAG_SYSTEM_PROMPT = """
             你是一个法律知识助手。请严格根据以下【检索到的法律知识】来回答用户问题。
@@ -75,11 +73,6 @@ public class RagService {
 
         this.embeddingDurationTimer = Timer.builder("agentsaul.rag.embedding.duration")
                 .description("Time taken for document embedding")
-                .publishPercentiles(0.5, 0.9, 0.99)
-                .register(meterRegistry);
-
-        this.hybridScoreSummary = DistributionSummary.builder("agentsaul.rag.hybrid.score")
-                .description("Hybrid retrieval combined scores")
                 .publishPercentiles(0.5, 0.9, 0.99)
                 .register(meterRegistry);
     }
