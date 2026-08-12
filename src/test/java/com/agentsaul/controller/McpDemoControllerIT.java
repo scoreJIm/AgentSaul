@@ -1,33 +1,32 @@
 package com.agentsaul.controller;
 
-import com.agentsaul.mcp.McpTools;
+import com.agentsaul.BaseIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.context.annotation.Import;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(McpDemoController.class)
-@Import(McpTools.class)
 @DisplayName("MCP Demo API Integration Tests")
-class McpDemoControllerIT {
+class McpDemoControllerIT extends BaseIntegrationTest {
 
-    @Autowired private MockMvc mockMvc;
+    @MockBean(name = "mcpChatClient")
+    private ChatClient mcpChatClient;
 
     @Nested
-    @DisplayName("GET /api/mcp/tools")
+    @DisplayName("GET /api/mcp/tools (authenticated)")
+    @WithMockUser(username = "testuser", roles = "USER")
     class ListTools {
 
         @Test
-        @DisplayName("should list MCP tools")
+        @DisplayName("should list MCP tools when authenticated")
         void shouldListTools() throws Exception {
             mockMvc.perform(get("/api/mcp/tools"))
                     .andExpect(status().isOk())
@@ -38,7 +37,20 @@ class McpDemoControllerIT {
     }
 
     @Nested
+    @DisplayName("GET /api/mcp/tools (security check)")
+    class ListToolsUnauthenticated {
+
+        @Test
+        @DisplayName("should reject unauthenticated access to tools")
+        void shouldRejectUnauthenticatedAccess() throws Exception {
+            mockMvc.perform(get("/api/mcp/tools"))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Nested
     @DisplayName("POST /api/mcp/chat")
+    @WithMockUser(username = "testuser", roles = "USER")
     class Chat {
 
         @Test

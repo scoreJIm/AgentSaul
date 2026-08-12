@@ -1,19 +1,17 @@
 package com.agentsaul.controller;
 
-import com.agentsaul.config.SecurityConfig;
-import com.agentsaul.security.JwtTokenProvider;
+import com.agentsaul.BaseIntegrationTest;
+import com.agentsaul.entity.Conversation;
 import com.agentsaul.service.ChatService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.test.web.servlet.MockMvc;
 import reactor.core.publisher.Flux;
+
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -22,14 +20,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(ChatController.class)
-@Import(SecurityConfig.class)
 @DisplayName("Chat API Integration Tests")
-class ChatControllerIT {
+class ChatControllerIT extends BaseIntegrationTest {
 
-    @Autowired private MockMvc mockMvc;
-    @MockBean private ChatService chatService;
-    @MockBean private JwtTokenProvider jwtTokenProvider;
+    @MockBean
+    private ChatService chatService;
 
     @Nested
     @DisplayName("GET /api/session")
@@ -70,7 +65,7 @@ class ChatControllerIT {
         @DisplayName("should return SSE stream for chat message")
         void shouldReturnSseStream() throws Exception {
             when(chatService.getOrCreateUuid(anyString())).thenReturn("test-uuid");
-            when(chatService.chat(anyString(), anyString()))
+            when(chatService.chat(anyString(), anyString(), anyString()))
                     .thenReturn(Flux.just("Hello", " ", "World"));
 
             mockMvc.perform(post("/api/chat")
@@ -78,6 +73,50 @@ class ChatControllerIT {
                             .content("{\"message\": \"Hello\"}"))
                     .andExpect(status().isOk())
                     .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM));
+        }
+    }
+
+    @Nested
+    @DisplayName("Security: POST /api/chat")
+    class ChatSecurity {
+
+        @Test
+        @DisplayName("should reject unauthenticated SSE streaming request")
+        void shouldRejectUnauthenticatedSseRequest() throws Exception {
+            mockMvc.perform(post("/api/chat")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"message\": \"Hello\"}"))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /api/conversations")
+    @WithMockUser(username = "testuser", roles = "USER")
+    class ConversationList {
+
+        @Test
+        @DisplayName("should return empty conversation list")
+        void shouldReturnEmptyConversationList() throws Exception {
+            when(chatService.listConversations(any())).thenReturn(List.of());
+
+            mockMvc.perform(get("/api/conversations"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+        }
+
+        @Test
+        @DisplayName("should return conversations for authenticated user")
+        void shouldReturnConversations() throws Exception {
+            Conversation conv = new Conversation();
+            conv.setId(1L);
+            conv.setTitle("Hello World");
+            when(chatService.listConversations(any())).thenReturn(List.of(conv));
+
+            mockMvc.perform(get("/api/conversations"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$[0].id").value(1))
+                    .andExpect(jsonPath("$[0].title").value("Hello World"));
         }
     }
 }
