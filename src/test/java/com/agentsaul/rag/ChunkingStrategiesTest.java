@@ -77,7 +77,7 @@ class ChunkingStrategiesTest {
         @DisplayName("should handle long paragraphs by sub-splitting")
         void shouldSubSplitLongParagraphs() {
             StringBuilder longPara = new StringBuilder();
-            for (int i = 1; i <= 30; i++) {
+            for (int i = 1; i <= 55; i++) {
                 longPara.append("第").append(i).append("条规定了相关内容。");
             }
             Document doc = createDoc("long.md", longPara.toString());

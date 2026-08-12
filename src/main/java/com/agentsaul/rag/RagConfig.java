@@ -28,7 +28,7 @@ public class RagConfig {
      * Dimension is read from {@link RagProperties}.
      */
     @Bean
-    @ConditionalOnMissingBean(EmbeddingModel.class)
+    @ConditionalOnMissingBean(type = "org.springframework.ai.openai.OpenAiEmbeddingModel")
     public EmbeddingModel mockEmbeddingModel(RagProperties ragProperties) {
         int dimension = ragProperties.getEmbedding().getDimension();
         log.info("No EmbeddingModel bean found — creating MockEmbeddingModel (dimension={})", dimension);
