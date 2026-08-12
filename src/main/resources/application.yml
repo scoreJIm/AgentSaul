@@ -26,6 +26,12 @@ spring:
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
 
+  session:
+    store-type: redis
+    redis:
+      namespace: agentsaul:session
+    timeout: 30m
+
   data:
     redis:
       host: ${REDIS_HOST:localhost}

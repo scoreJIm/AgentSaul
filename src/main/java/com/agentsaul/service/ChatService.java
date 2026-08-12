@@ -1,5 +1,6 @@
 package com.agentsaul.service;
 
+import com.agentsaul.config.ChatMemoryFactory;
 import com.agentsaul.entity.Conversation;
 import com.agentsaul.entity.Message;
 import com.agentsaul.repository.ConversationMapper;
@@ -14,7 +15,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -24,9 +24,6 @@ import reactor.core.publisher.Flux;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class ChatService {
@@ -37,14 +34,8 @@ public class ChatService {
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
     private final IntentParser intentParser;
-
-    // per-user sliding window chat memory (keyed by "user:{userId}")
-    private final Map<String, ChatMemory> userMemoryMap = new ConcurrentHashMap<>();
-
-    // userId -> current conversationId
-    private final Map<String, Long> userConvMap = new ConcurrentHashMap<>();
-    // sessionId/identifier -> display UUID
-    private final Map<String, String> sessionUuidMap = new ConcurrentHashMap<>();
+    private final SessionManager sessionManager;
+    private final ChatMemoryFactory chatMemoryFactory;
 
     @Value("${app.prompt.system}")
     private Resource systemPromptFile;
@@ -58,6 +49,8 @@ public class ChatService {
                        ConversationMapper conversationMapper,
                        MessageMapper messageMapper,
                        IntentParser intentParser,
+                       SessionManager sessionManager,
+                       ChatMemoryFactory chatMemoryFactory,
                        LegalTools legalTools,
                        UtilityTools utilityTools,
                        TranslateTools translateTools,
@@ -65,6 +58,8 @@ public class ChatService {
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
         this.intentParser = intentParser;
+        this.sessionManager = sessionManager;
+        this.chatMemoryFactory = chatMemoryFactory;
         this.chatClient = chatClientBuilder
                 .defaultTools(legalTools, utilityTools, translateTools, webTools)
                 .build();
@@ -83,47 +78,38 @@ public class ChatService {
         }
     }
 
-    public String getOrCreateUuid(String key) {
-        return sessionUuidMap.computeIfAbsent(key, k -> UUID.randomUUID().toString().substring(0, 8));
-    }
-
     /**
-     * Chat with user context. userId comes from JWT authentication.
+     * Chat with session and user context.
+     * sessionId comes from Spring Session (Redis-backed).
+     * userId comes from JWT authentication.
      */
-    public Flux<String> chat(String userId, String userMessage) {
+    public Flux<String> chat(String sessionId, String userId, String userMessage) {
         Long userIdLong = parseUserId(userId);
         IntentParser.IntentResult intent = intentParser.parse(userMessage);
-        Conversation conv = getOrCreateConversation(userId, userIdLong);
+        Conversation conv = getOrCreateConversation(sessionId, userId, userIdLong);
 
         if (conv.getTitle() == null || conv.getTitle().isBlank()) {
             conv.setTitle(userMessage.length() > 50 ? userMessage.substring(0, 50) + "..." : userMessage);
             conversationMapper.updateTitle(conv);
         }
 
-        // save user message
-        Message userMsg = new Message();
-        userMsg.setConversationId(conv.getId());
-        userMsg.setRole("user");
-        userMsg.setContent(userMessage);
-        messageMapper.insert(userMsg);
+        String uuid = sessionManager.getOrCreateUuid(sessionId);
 
-        String uuid = getOrCreateUuid("user:" + userId);
-
-        log.info("[Business] userId={} uuid={} convId={} intent={} lang={}",
-                userId, uuid, conv.getId(), intent.intent(), intent.language());
+        log.info("[Business] sessionId={} userId={} uuid={} convId={} intent={} lang={}",
+                sessionId, userId, uuid, conv.getId(), intent.intent(), intent.language());
 
         String effectivePrompt = systemPrompt;
         if ("zh".equals(intent.language())) {
             effectivePrompt += "\n用户说中文，请用中文回复。";
         }
 
-        // per-user chat memory keyed by userId
-        String memoryKey = "user:" + userId;
-        ChatMemory memory = userMemoryMap.computeIfAbsent(memoryKey,
-                k -> MessageWindowChatMemory.builder().maxMessages(20).build());
+        // Create ChatMemory via factory: MySQL-backed if DB available, else in-memory fallback.
+        // MysqlChatMemory handles message persistence through the MessageChatMemoryAdvisor.
+        ChatMemory memory = chatMemoryFactory.create(conv.getId());
 
+        String conversationIdStr = String.valueOf(conv.getId());
         MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(memory)
-                .conversationId(memoryKey)
+                .conversationId(conversationIdStr)
                 .build();
 
         StringBuilder fullResponse = new StringBuilder();
@@ -138,11 +124,7 @@ public class ChatService {
                 .doOnComplete(() -> {
                     String response = fullResponse.toString();
                     if (!response.isBlank()) {
-                        Message aiMsg = new Message();
-                        aiMsg.setConversationId(conv.getId());
-                        aiMsg.setRole("assistant");
-                        aiMsg.setContent(response);
-                        messageMapper.insert(aiMsg);
+                        log.debug("[Business] convId={} responseLen={}", conv.getId(), response.length());
                     }
                 })
                 .onErrorResume(e -> {
@@ -151,17 +133,29 @@ public class ChatService {
                 });
     }
 
-    private Conversation getOrCreateConversation(String userId, Long userIdLong) {
-        Long convId = userConvMap.get(userId);
+    private Conversation getOrCreateConversation(String sessionId, String userId, Long userIdLong) {
+        // First, try to get the conversation from the current session (Redis-backed)
+        Long convId = sessionManager.getConversationId(sessionId);
         if (convId != null) {
             Conversation conv = conversationMapper.findByIdAndUserId(convId, userIdLong);
-            if (conv != null) return conv;
+            if (conv != null) {
+                log.debug("[Business] reconnected sessionId={} to convId={}", sessionId, convId);
+                return conv;
+            }
+            // Conversation deleted or ownership changed, clear stale reference
+            sessionManager.removeSession(sessionId);
         }
+
+        // No active conversation — create a new one
         Conversation conv = new Conversation();
         conv.setUserId(userIdLong);
         conversationMapper.insert(conv);
-        userConvMap.put(userId, conv.getId());
-        log.info("[Business] new conversation id={} for userId={}", conv.getId(), userId);
+
+        // Persist session -> conversationId in Redis (with ConcurrentHashMap fallback)
+        sessionManager.setConversationId(sessionId, conv.getId());
+        sessionManager.setUserMemory(userId, String.valueOf(conv.getId()));
+
+        log.info("[Business] new conversation id={} for sessionId={} userId={}", conv.getId(), sessionId, userId);
         return conv;
     }
 
@@ -190,12 +184,15 @@ public class ChatService {
             messageMapper.deleteByConversationId(conversationId);
             conversationMapper.deleteById(conversationId);
         }
-        userConvMap.entrySet().removeIf(e -> e.getValue().equals(conversationId));
         log.info("[Business] conversation deleted id={}", conversationId);
     }
 
-    public Long getConversationId(String userId) {
-        return userConvMap.get(userId);
+    public Long getConversationId(String sessionId) {
+        return sessionManager.getConversationId(sessionId);
+    }
+
+    public String getOrCreateUuid(String sessionId) {
+        return sessionManager.getOrCreateUuid(sessionId);
     }
 
     private Long parseUserId(String userId) {

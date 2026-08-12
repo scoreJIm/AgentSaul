@@ -11,6 +11,8 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,15 +41,24 @@ public class ChatController {
     @GetMapping("/session")
     @PreAuthorize("hasRole('USER')")
     @Timed(value = "chat.session.info", description = "Time taken to retrieve session info")
-    @Operation(summary = "Get session info", description = "Returns the current user ID and associated conversation ID")
+    @Operation(summary = "Get session info",
+            description = "Returns the current Spring Session ID, user ID, and associated conversation ID. "
+                    + "On reconnect, the session is loaded from Redis and the conversation context is restored from MySQL.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Session info retrieved successfully")
     })
-    public Map<String, String> sessionInfo() {
+    public Map<String, String> sessionInfo(HttpServletRequest request) {
+        HttpSession session = request.getSession();
+        String sessionId = session.getId();
         String userId = getCurrentUserId();
-        Long convId = chatService.getConversationId(userId);
-        String uuid = chatService.getOrCreateUuid("user:" + userId);
+        Long convId = chatService.getConversationId(sessionId);
+        String uuid = chatService.getOrCreateUuid(sessionId);
+
+        log.info("[API] GET /session sessionId={} userId={} convId={}", sessionId, userId,
+                convId != null ? convId : "none");
+
         return Map.of(
+                "sessionId", sessionId,
                 "userId", userId,
                 "uuid", uuid,
                 "conversationId", convId != null ? String.valueOf(convId) : "none"
@@ -60,26 +71,35 @@ public class ChatController {
     @Timed(value = "chat.stream", description = "Time taken for streaming chat response")
     @Operation(summary = "Send a chat message (streaming)",
             description = "Sends a user message and returns an SSE stream of AI responses. "
-                    + "The AI may invoke tools (weather, location, legal, translation, etc.) based on the message content.")
+                    + "The AI may invoke tools (weather, location, legal, translation, etc.) based on the message content. "
+                    + "Uses Redis-backed Spring Session to persist conversation context across pod restarts.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "SSE stream of AI response chunks"),
             @ApiResponse(responseCode = "400", description = "Empty message or validation error")
     })
-    public Flux<String> chat(@Valid @RequestBody ChatRequest request) {
+    public Flux<String> chat(@Valid @RequestBody ChatRequest request,
+                              HttpServletRequest httpRequest) {
         String userId = getCurrentUserId();
         String message = request.getMessage();
-        log.info("[API] POST /chat userId={} msgLen={}", userId, message.length());
+
+        // Use Spring Session's session ID (Redis-backed)
+        HttpSession session = httpRequest.getSession();
+        String sessionId = session.getId();
+
+        log.info("[API] POST /chat sessionId={} userId={} msgLen={}", sessionId, userId, message.length());
+
         if (message.isBlank()) {
             return Flux.just("You haven't said anything, counselor.");
         }
-        return chatService.chat(userId, message);
+        return chatService.chat(sessionId, userId, message);
     }
 
     @GetMapping("/conversations")
     @PreAuthorize("hasRole('USER')")
     @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "chat.conversations.list", description = "Time taken to list conversations")
-    @Operation(summary = "List all conversations", description = "Returns all saved chat conversations for the current user ordered by creation time descending")
+    @Operation(summary = "List all conversations",
+            description = "Returns all saved chat conversations for the current user ordered by creation time descending")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "List of conversations")
     })
@@ -94,7 +114,8 @@ public class ChatController {
     @PreAuthorize("hasRole('USER')")
     @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "chat.conversations.messages", description = "Time taken to retrieve conversation messages")
-    @Operation(summary = "Get conversation messages", description = "Returns all messages (user, assistant, tool calls) for a given conversation")
+    @Operation(summary = "Get conversation messages",
+            description = "Returns all messages (user, assistant, tool calls) for a given conversation")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "List of messages for the conversation"),
             @ApiResponse(responseCode = "404", description = "Conversation not found")
@@ -109,7 +130,8 @@ public class ChatController {
     @PreAuthorize("hasRole('USER')")
     @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "chat.conversations.tools", description = "Time taken to retrieve tool call records")
-    @Operation(summary = "Get conversation tool calls", description = "Returns all tool call and tool result messages for a given conversation")
+    @Operation(summary = "Get conversation tool calls",
+            description = "Returns all tool call and tool result messages for a given conversation")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "List of tool messages"),
             @ApiResponse(responseCode = "404", description = "Conversation not found")
@@ -124,7 +146,8 @@ public class ChatController {
     @PreAuthorize("hasRole('USER')")
     @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "chat.conversations.delete", description = "Time taken to delete a conversation")
-    @Operation(summary = "Delete a conversation", description = "Permanently deletes a conversation and all its messages")
+    @Operation(summary = "Delete a conversation",
+            description = "Permanently deletes a conversation and all its messages")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Conversation deleted successfully"),
             @ApiResponse(responseCode = "404", description = "Conversation not found")
