@@ -1,0 +1,58 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: agentsaul-alerts
+  labels:
+    app: agentsaul
+    release: prometheus
+spec:
+  groups:
+    - name: agentsaul
+      rules:
+        - alert: AgentSaulHighErrorRate
+          expr: rate(http_server_requests_seconds_count{app="agentsaul",status=~"5.."}[5m]) / rate(http_server_requests_seconds_count{app="agentsaul"}[5m]) > 0.01
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "AgentSaul error rate > 1%"
+
+        - alert: AgentSaulHighLatency
+          expr: histogram_quantile(0.99, rate(http_server_requests_seconds_bucket{app="agentsaul"}[5m])) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "AgentSaul P99 latency > 3s"
+
+        - alert: AgentSaulLLMErrorRate
+          expr: rate(agentsaul_llm_api_errors_total[10m]) / rate(agentsaul_chat_requests_total[10m]) > 0.10
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "AgentSaul LLM API error rate > 10%"
+
+        - alert: AgentSaulHighCost
+          expr: rate(agentsaul_llm_api_cost_total[1h]) > 10
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "AgentSaul estimated cost > $10/hour"
+
+        - alert: AgentSaulRedisDown
+          expr: redis_connected_clients{app="agentsaul"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "AgentSaul cannot connect to Redis"
+
+        - alert: AgentSaulDatabaseDown
+          expr: hikaricp_connections_active{app="agentsaul"} <= 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "AgentSaul database connection pool has zero active connections"
