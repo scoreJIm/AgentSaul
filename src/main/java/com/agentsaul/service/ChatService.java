@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
@@ -28,6 +29,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 
 @Service
@@ -49,6 +51,9 @@ public class ChatService {
 
     @Value("${app.prompt.legal}")
     private Resource legalPromptFile;
+
+    @Value("${app.models:qwen3.8-max,qwen3.7-plus,deepseek-v4-pro-0813,qwen3.8-flash,kimi-k3}")
+    private String modelsConfig;
 
     private String systemPrompt;
 
@@ -131,12 +136,7 @@ public class ChatService {
 
         StringBuilder fullResponse = new StringBuilder();
 
-        Flux<String> llmStream = chatClient.prompt()
-                .advisors(memoryAdvisor)
-                .system(effectivePrompt)
-                .user(userMessage)
-                .stream()
-                .content()
+        Flux<String> llmStream = streamWithFallback(effectivePrompt, memoryAdvisor, userMessage)
                 .doOnNext(fullResponse::append)
                 .doOnComplete(() -> {
                     String response = fullResponse.toString();
@@ -167,6 +167,47 @@ public class ChatService {
         meterRegistry.counter("agentsaul.circuitbreaker.llmapi.fallback").increment();
         return Flux.just("I'm sorry, I'm having trouble connecting to my brain right now. "
                 + "Please try again in a moment.");
+    }
+
+    /**
+     * Try each configured model in order; when one fails (e.g. quota exhausted)
+     * fall through to the next, and return a friendly message if all fail.
+     */
+    private Flux<String> streamWithFallback(String effectivePrompt, MessageChatMemoryAdvisor advisor, String userMessage) {
+        List<String> models = parseModels();
+        if (models.isEmpty()) {
+            models = List.of("qwen3.8-max");
+        }
+        return streamModel(models, 0, effectivePrompt, advisor, userMessage);
+    }
+
+    private Flux<String> streamModel(List<String> models, int idx, String effectivePrompt,
+                                     MessageChatMemoryAdvisor advisor, String userMessage) {
+        if (idx >= models.size()) {
+            return Flux.just("模型这会儿有点忙,请稍后再试。");
+        }
+        String model = models.get(idx);
+        return chatClient.prompt()
+                .advisors(advisor)
+                .system(effectivePrompt)
+                .user(userMessage)
+                .options(ChatOptions.builder().model(model).build())
+                .stream()
+                .content()
+                .onErrorResume(e -> {
+                    log.warn("[Business] LLM model {} failed, trying next: {}", model, e.getMessage());
+                    return streamModel(models, idx + 1, effectivePrompt, advisor, userMessage);
+                });
+    }
+
+    private List<String> parseModels() {
+        if (modelsConfig == null || modelsConfig.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(modelsConfig.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
     }
 
     private Conversation getOrCreateConversation(String sessionId, String userId, Long userIdLong) {

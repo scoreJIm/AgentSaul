@@ -300,11 +300,17 @@ header {
   #topnav .nav-links a { padding: 4px 8px; font-size: 0.68rem; }
 }
 @media (max-width: 600px) {
-  body { flex-direction: column; }
-  #sidebar { width: 100%; max-height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
+  #app-body { flex-direction: column; }
+  #sidebar { width: 100%; max-height: 30vh; border-right: none; border-bottom: 1px solid var(--border); }
   #main { min-height: 0; }
-  .bubble { max-width: 90%; }
+  .bubble { max-width: 92%; }
   #topnav { padding: 0 10px; gap: 6px; }
+  #topnav .nav-links { display: none; }
+  .header-stats .hs:not(:last-child) { display: none; }
+  #chat-container { padding: 12px; }
+  #input-area { padding: 10px 12px 12px; }
+  .welcome-card { padding: 24px 16px; }
+  .welcome-card h1 { font-size: 1.4rem; }
 }
 </style>
 </head>
@@ -313,8 +319,6 @@ header {
 <nav id="topnav">
   <span class="nav-brand">&#9878; Agent<em>Saul</em></span>
   <div class="nav-links">
-    <a href="/rag-demo.html" class="rag-link">&#128214; RAG Demo</a>
-    <a href="/mcp-demo.html" class="mcp-link">&#128295; MCP Demo</a>
     <a href="/swagger-ui.html" target="_blank" style="color:var(--green)">&#128196; API Docs</a>
   </div>
   <div class="live-status">
@@ -364,7 +368,7 @@ header {
       <div id="intent-tag" style="display:none"></div>
     </div>
     <div class="header-stats">
-      <div class="hs"><div class="l">模型</div><div class="v">Qwen3-VL</div></div>
+      <div class="hs"><div class="l">模型</div><div class="v">自动切换</div></div>
       <div class="hs"><div class="l">供应商</div><div class="v">百炼</div></div>
       <div class="hs"><div class="l">本地时间</div><div class="v" id="clock">--:--:--</div></div>
     </div>
