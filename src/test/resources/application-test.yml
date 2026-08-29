@@ -1,0 +1,57 @@
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  session:
+    store-type: none
+
+  ai:
+    openai:
+      api-key: test-dummy-key-not-real
+      base-url: http://localhost:19999/v1
+      chat:
+        options:
+          model: dummy-model
+
+  mcp:
+    server:
+      enabled: false
+    client:
+      enabled: false
+
+  datasource:
+    url: jdbc:tc:postgresql:16:///agent_saul_test?TC_REUSABLE=true
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+    username: test
+    password: test
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 1000ms
+      lettuce:
+        pool:
+          enabled: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.session.SessionAutoConfiguration
+
+agentsaul:
+  jwt:
+    secret: test-secret-key-for-integration-tests-min-32chars!!
+    access-expiration: 30m
+    refresh-expiration: 7d
+  api-key: test-api-key-12345
+
+logging:
+  level:
+    com.agentsaul: DEBUG
+    org.springframework.security: DEBUG
+    org.testcontainers: INFO
