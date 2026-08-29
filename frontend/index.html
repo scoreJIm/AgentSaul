@@ -420,6 +420,25 @@ const intentTag = document.getElementById('intent-tag');
 const sessionIdEl = document.getElementById('session-id');
 const clockEl = document.getElementById('clock');
 let convId = null, streaming = false;
+let authToken = null;
+
+async function login() {
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ username: 'admin', password: 'agentsaul123' })
+    });
+    const d = await r.json();
+    authToken = d.accessToken || d.token || null;
+  } catch(e) { console.error('login failed', e); }
+}
+
+function api(path, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+  return fetch(path, { ...opts, headers });
+}
+
 
 // clock
 function tick() { clockEl.textContent = new Date().toLocaleTimeString('zh-CN',{hour12:false}); }
@@ -437,11 +456,10 @@ function hideError() {
 // session
 async function initSession() {
   try {
-    const r = await fetch('/api/session'); const s = await r.json();
+    const r = await api('/api/session'); const s = await r.json();
     sessionIdEl.textContent = s.sessionId || '---';
   } catch(e) { sessionIdEl.textContent = 'offline'; }
 }
-initSession();
 
 // input resize
 inputEl.addEventListener('input', () => { inputEl.style.height='auto'; inputEl.style.height=Math.min(inputEl.scrollHeight, 100)+'px'; });
@@ -449,7 +467,7 @@ inputEl.addEventListener('input', () => { inputEl.style.height='auto'; inputEl.s
 // conversations
 async function loadConvs() {
   try {
-    const r = await fetch('/api/conversations');
+    const r = await api('/api/conversations');
     if (!r.ok) throw new Error('Server ' + r.status);
     const cs = await r.json();
     convList.innerHTML = '';
@@ -473,8 +491,8 @@ async function loadConv(id) {
   chatEl.innerHTML = ''; toolList.innerHTML = '暂无工具调用';
   try {
     const [msgs, tools] = await Promise.all([
-      fetch(`/api/conversations/${id}/messages`).then(r=>r.json()),
-      fetch(`/api/conversations/${id}/tools`).then(r=>r.json())
+      api(`/api/conversations/${id}/messages`).then(r=>r.json()),
+      api(`/api/conversations/${id}/tools`).then(r=>r.json())
     ]);
     msgs.forEach(m => {
       if (m.role==='tool_call' || m.role==='tool_result') renderTool(m); else appendMsg(m.role, m.content, false);
@@ -498,7 +516,7 @@ async function newConv() {
 
 async function resetConv() {
   if (convId) {
-    try { await fetch(`/api/conversations/${convId}`,{method:'DELETE'}); } catch(e) {}
+    try { await api(`/api/conversations/${convId}`,{method:'DELETE'}); } catch(e) {}
   }
   convId = null; chatEl.innerHTML = ''; toolList.innerHTML = '暂无工具调用';
   chatEl.innerHTML = `<div class="welcome-wrap" id="welcome-wrap">
@@ -508,7 +526,7 @@ async function resetConv() {
 }
 
 async function delConv(id) {
-  await fetch(`/api/conversations/${id}`,{method:'DELETE'}).catch(() => {});
+  await api(`/api/conversations/${id}`,{method:'DELETE'}).catch(() => {});
   if (convId===id) resetConv(); else loadConvs();
 }
 
@@ -566,7 +584,7 @@ async function send() {
 
   let fullText = '';
   try {
-    const resp = await fetch('/api/chat', {
+    const resp = await api('/api/chat', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ message: msg })
     });
@@ -606,7 +624,7 @@ async function send() {
     try {
       loadConvs();
       if (!convId) {
-        const cs = await (await fetch('/api/conversations')).json();
+        const cs = await (await api('/api/conversations')).json();
         if (cs.length) { convId = cs[0].id; loadConv(convId); }
       } else {
         loadConv(convId);
@@ -619,7 +637,7 @@ inputEl.addEventListener('keydown', e => {
   if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send(); }
 });
 
-loadConvs();
+login().finally(() => { initSession(); loadConvs(); });
 </script>
 </body>
 </html>

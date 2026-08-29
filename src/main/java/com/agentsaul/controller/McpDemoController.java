@@ -35,7 +35,7 @@ public class McpDemoController {
     }
 
     @GetMapping("/tools")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "mcp.tools.list", description = "Time taken to list MCP tools")
     @Operation(summary = "List MCP tools", description = "Discovers and returns all MCP tools exposed by this server, "
@@ -63,7 +63,7 @@ public class McpDemoController {
     }
 
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @RateLimit(limit = 10, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "mcp.chat.stream", description = "Time taken for MCP streaming chat")
     @Operation(summary = "Chat via MCP tools (streaming)",

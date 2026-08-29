@@ -43,7 +43,7 @@ public class ChatController {
     }
 
     @GetMapping("/session")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @Timed(value = "chat.session.info", description = "Time taken to retrieve session info")
     @Operation(summary = "Get session info",
             description = "Returns the current Spring Session ID, user ID, and associated conversation ID. "
@@ -70,7 +70,7 @@ public class ChatController {
     }
 
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @RateLimit(limit = 20, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "chat.stream", description = "Time taken for streaming chat response")
     @Operation(summary = "Send a chat message (streaming)",
@@ -99,7 +99,7 @@ public class ChatController {
     }
 
     @GetMapping("/conversations")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "chat.conversations.list", description = "Time taken to list conversations")
     @Operation(summary = "List all conversations",
@@ -115,7 +115,7 @@ public class ChatController {
     }
 
     @GetMapping("/conversations/{id}/messages")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "chat.conversations.messages", description = "Time taken to retrieve conversation messages")
     @Operation(summary = "Get conversation messages",
@@ -131,7 +131,7 @@ public class ChatController {
     }
 
     @GetMapping("/conversations/{id}/tools")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "chat.conversations.tools", description = "Time taken to retrieve tool call records")
     @Operation(summary = "Get conversation tool calls",
@@ -147,7 +147,7 @@ public class ChatController {
     }
 
     @DeleteMapping("/conversations/{id}")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "chat.conversations.delete", description = "Time taken to delete a conversation")
     @Operation(summary = "Delete a conversation",
@@ -166,7 +166,7 @@ public class ChatController {
     }
 
     @GetMapping(value = "/conversations/{id}/export", produces = "text/markdown")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @RateLimit(limit = 10, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Timed(value = "chat.conversations.export", description = "Time taken to export a conversation")
     @Operation(summary = "Export conversation as markdown",

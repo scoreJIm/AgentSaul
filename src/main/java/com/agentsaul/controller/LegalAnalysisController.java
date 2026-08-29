@@ -27,7 +27,7 @@ public class LegalAnalysisController {
     }
 
     @PostMapping("/legal")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @RateLimit(limit = 10, windowSeconds = 60, scope = RateLimit.Scope.USER)
     @Operation(summary = "Analyze a legal query into a structured case analysis")
     public LegalAnalysisService.CaseAnalysis analyze(@RequestBody Map<String, String> body) {
