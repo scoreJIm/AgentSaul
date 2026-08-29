@@ -1,0 +1,36 @@
+# Maven
+target/
+*.jar
+*.war
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+.vscode/
+.settings/
+.classpath
+.project
+
+# Logs
+logs/
+*.log
+
+# Data
+data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude AI
+.claude/
+
+# Sensitive config & env
+application-local.yml
+.env
+*.env
+!*.env.example
