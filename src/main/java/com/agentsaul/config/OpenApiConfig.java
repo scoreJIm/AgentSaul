@@ -20,26 +20,21 @@ public class OpenApiConfig {
                         .title("AgentSaul API")
                         .version("0.0.1")
                         .description("""
-                                Better Call Saul — AI Attorney Chat API.
+                                A conversational chat API built on Spring AI: function calling, SSE
+                                streaming, conversation memory, and structured output.
+                                Tools: weather, geolocation, legal calculation, translation, math.
 
-                                ## Features
-                                - **Chat** — AI-powered legal assistant with streaming responses
-                                - **RAG** — Retrieval-Augmented Generation for legal knowledge
-                                - **MCP** — Model Context Protocol tool demo
-                                - **Tools** — Weather, geolocation, legal calculation, translation, search
-
-                                ## Authentication
-                                No authentication required for local development.
+                                Authentication is JWT-based (login at /api/auth/login).
                                 """)
                         .contact(new Contact()
-                                .name("AgentSaul Team")
-                                .email("dev@agentsaul.com"))
+                                .name("Wei Wei")
+                                .email("vvlovqq@gmail.com"))
                         .license(new License()
                                 .name("Apache 2.0")
                                 .url("https://www.apache.org/licenses/LICENSE-2.0")))
                 .servers(List.of(
                         new Server().url("http://localhost:8080").description("Local Dev"),
-                        new Server().url("https://agentsaul.example.com").description("Production")
+                        new Server().url("https://agent.jimmyweidev.com").description("Production")
                 ));
     }
 }
