@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AgentSaul — AI Attorney</title>
+<title>AgentSaul</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -378,7 +378,7 @@ header {
     <div class="welcome-wrap" id="welcome-wrap">
       <div class="welcome-card">
         <span class="wc-icon">&#9878;</span>
-        <h1>Better Call <em>Saul</em></h1>
+        <h1>Agent<em>Saul</em></h1>
         <p>您的 AI 律师已上线。我支持天气查询、地理定位、法律期限计算、赔偿估算、翻译、搜索和数学计算。<br>所有对话和工具调用都会被记录。</p>
         <div class="skill-tags">
           <span class="skill-tag on">天气</span>
@@ -507,7 +507,7 @@ async function loadConv(id) {
 async function newConv() {
   convId = null; chatEl.innerHTML = '';
   chatEl.innerHTML = `<div class="welcome-wrap" id="welcome-wrap">
-    <div class="welcome-card"><span class="wc-icon">&#9878;</span><h1>Better Call <em>Saul</em></h1>
+    <div class="welcome-card"><span class="wc-icon">&#9878;</span><h1>Agent<em>Saul</em></h1>
     <p>新案件。有什么可以帮你的？</p>
     <div class="skill-tags"><span class="skill-tag on">天气</span><span class="skill-tag on">定位</span><span class="skill-tag on">法律</span><span class="skill-tag on">翻译</span><span class="skill-tag on">计算</span><span class="skill-tag on">搜索</span></div></div></div>`;
   toolList.innerHTML = '暂无工具调用';
@@ -520,7 +520,7 @@ async function resetConv() {
   }
   convId = null; chatEl.innerHTML = ''; toolList.innerHTML = '暂无工具调用';
   chatEl.innerHTML = `<div class="welcome-wrap" id="welcome-wrap">
-    <div class="welcome-card"><span class="wc-icon">&#9878;</span><h1>Better Call <em>Saul</em></h1>
+    <div class="welcome-card"><span class="wc-icon">&#9878;</span><h1>Agent<em>Saul</em></h1>
     <p>案件已重置。有什么可以帮你的？</p></div></div>`;
   loadConvs();
 }
