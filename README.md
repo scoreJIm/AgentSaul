@@ -1,7 +1,8 @@
 # AgentSaul
 
-A conversational chat app built on Spring AI, with a light legal-assistant theme.
-It demonstrates function calling, SSE streaming, conversation memory, and structured output.
+A tool-using AI workspace built on Spring AI. It makes function calling visible
+through a live execution log while retaining SSE streaming, conversation memory,
+and structured output.
 
 ## What it does
 

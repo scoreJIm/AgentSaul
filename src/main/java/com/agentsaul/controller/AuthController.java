@@ -1,5 +1,6 @@
 package com.agentsaul.controller;
 
+import com.agentsaul.annotation.RateLimit;
 import com.agentsaul.dto.LoginRequest;
 import com.agentsaul.dto.RefreshTokenRequest;
 import com.agentsaul.dto.TokenResponse;
@@ -16,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -73,6 +75,18 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("success", false, "errorCode", "MISSING_CREDENTIALS",
                         "message", "Provide username/password or apiKey"));
+    }
+
+    @PostMapping("/demo")
+    @RateLimit(limit = 10, windowSeconds = 60, scope = RateLimit.Scope.IP)
+    @Operation(summary = "Start a public demo session",
+            description = "Issues a short-lived USER token for the public portfolio demo. No admin privileges are granted.")
+    public TokenResponse demo() {
+        String userId = "demo-" + UUID.randomUUID();
+        String accessToken = jwtTokenProvider.generateAccessToken(userId, "USER");
+        String refreshToken = jwtTokenProvider.generateRefreshToken(userId);
+        log.info("Public demo session issued");
+        return new TokenResponse(accessToken, refreshToken, 1800);
     }
 
     @PostMapping("/refresh")
