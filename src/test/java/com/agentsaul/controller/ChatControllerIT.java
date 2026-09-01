@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.web.servlet.MvcResult;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -18,6 +19,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @DisplayName("Chat API Integration Tests")
@@ -68,11 +70,18 @@ class ChatControllerIT extends BaseIntegrationTest {
             when(chatService.chat(anyString(), anyString(), anyString()))
                     .thenReturn(Flux.just("Hello", " ", "World"));
 
-            mockMvc.perform(post("/api/chat")
+            MvcResult result = mockMvc.perform(post("/api/chat")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"message\": \"Hello\"}"))
                     .andExpect(status().isOk())
-                    .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM));
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM))
+                    .andExpect(request().asyncStarted())
+                    .andReturn();
+
+            mockMvc.perform(asyncDispatch(result))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(org.hamcrest.Matchers.containsString("Hello")))
+                    .andExpect(content().string(org.hamcrest.Matchers.containsString("World")));
         }
     }
 

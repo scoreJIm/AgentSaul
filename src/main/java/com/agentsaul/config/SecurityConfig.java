@@ -1,6 +1,7 @@
 package com.agentsaul.config;
 
 import com.agentsaul.security.JwtAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,6 +32,10 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // The initial /api/chat request is authenticated. Its SSE stream is
+                        // delivered through a subsequent ASYNC dispatch after the response
+                        // has been committed, so that dispatch must not be re-authorized.
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .requestMatchers(
                                 "/",
                                 "/index.html",

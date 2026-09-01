@@ -98,6 +98,19 @@ public class ChatController {
         return chatService.chat(sessionId, userId, message);
     }
 
+    @GetMapping("/models")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    @Operation(summary = "Get the automatic model failover chain",
+            description = "Returns the primary model and ordered fallbacks. API keys are never exposed.")
+    public Map<String, Object> models() {
+        List<String> models = chatService.getModelChain();
+        return Map.of(
+                "mode", "automatic-fallback",
+                "primary", models.getFirst(),
+                "fallbacks", models.subList(1, models.size())
+        );
+    }
+
     @GetMapping("/conversations")
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @RateLimit(limit = 30, windowSeconds = 60, scope = RateLimit.Scope.USER)
